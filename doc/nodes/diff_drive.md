@@ -29,3 +29,5 @@ describing its implimentation.
     
 Constants for widths and radiuses will be exposed as needed for ease
 of use later on.
+
+[1]: https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/Twist.msg
