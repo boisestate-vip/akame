@@ -95,21 +95,6 @@ The idea is for these parameter names to mirror the underlying C++ SLAM implemen
 - `map_publish_interval`  
   Interval (seconds) used for map and visualization publishing.
 
-## Visual node (Google Draw)
-
-Label the box: **“Graph SLAM (2D Map)”**.
-
-Connect:
-
-- Incoming arrows from:
-  - Sensor boxes that produce `LaserScan` or `PointCloud2` (e.g., YDLIDAR GS2, Unitree 4D Lidar L1, Intel RealSense D435i, Synexens CS20).
-  - The **robot_localization / Kalman Filter** box (for `odom_in`).
-  - The Vive / global tracking box (for `beacon_in`, if used).
-- Outgoing arrows to:
-  - A “Map” / planner box (consumes `map`).
-  - The **Map–Odom Broadcaster** box (consumes `graph_slam_pose`).
-  - RViz / visualization (consumes `graph_slam_markers`).
-
 [1]: https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg  
 [2]: https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/PointCloud2.msg  
 [3]: https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Odometry.msg  
