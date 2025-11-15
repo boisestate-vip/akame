@@ -1,8 +1,10 @@
 # Mapping Nodes Overview
 
+NOTE TO TEAM: Feel free to delete this, but I included it just to make sure the 3 mapping nodes (graph_slam_node.md, map_odom_broadcaster.md, and pointcloud_to_laserscan_node.md make sense at least conceptually.
+
 ## Overview
 
-This document summarizes the mapping slice of the navigation stack for Mapping Option A (2D Graph SLAM). It explains how sensor drivers, localization, mapping nodes, and downstream planners fit together.
+This document summarizes the mapping slice of the navigation stack for Mapping Option A (2D Graph SLAM) from the PDR presentation. It explains how sensor drivers, localization, mapping nodes, and downstream planners fit together. 
 
 The goal is to provide a clear, high-level view that matches the Google Draw navigation diagram and the individual node documents in this directory.
 
@@ -65,12 +67,3 @@ The following mapping-related boxes should appear in (or be connected into) the 
   - `nav_msgs/Odometry` from robot_localization
 - **Output:**
   - TF `map -> odom` to the TF tree
-
-When adding or adjusting boxes in the Google Draw file, ensure that:
-
-- All mapping nodes sit between the **robot_localization / Kalman Filter** box and the **planning / diff drive** boxes.
-- Arrows accurately reflect message flow:
-  - Sensors → Localization (where appropriate) and/or Mapping  
-  - Localization → Graph SLAM Node and Map–Odom Broadcaster  
-  - Graph SLAM Node → Map–Odom Broadcaster and planners  
-  - Map–Odom Broadcaster → TF tree used by planners and controllers
