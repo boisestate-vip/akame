@@ -44,17 +44,5 @@ This node owns the `map -> odom` transform for Option A. Mapping and planning co
 
 Exact synchronization behavior, timeouts, and `frame_id` values will be finalized in the node’s configuration and launch files.
 
-## Visual node (Google Draw)
-
-Label the box: **“Map–Odom Broadcaster”**.
-
-Connect:
-
-- Incoming arrows from:
-  - **Graph SLAM (2D Map)** box (`graph_slam_pose`).
-  - **robot_localization / Kalman Filter** box (`odom_pose`).
-- Outgoing arrow to:
-  - A TF label or a generic “TF tree” annotation feeding planners and the Differential Drive Controller (which rely on consistent `map`, `odom`, and `base_link` frames).
-
 [1]: https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/PoseStamped.msg  
 [2]: https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Odometry.msg
