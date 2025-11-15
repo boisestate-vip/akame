@@ -52,7 +52,7 @@ This node focuses solely on SLAM and map generation. It exposes the optimized ro
 
 ## Parameters
 
-Exact parameter values will be set in configuration files, but the main categories are:
+The idea is for these parameter names to mirror the underlying C++ SLAM implementation, and exact parameter values will be configured via YAML in Akame. The main categories may look like:
 
 ### Frontend / observation parameters
 
