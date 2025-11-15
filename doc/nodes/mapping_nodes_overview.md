@@ -16,7 +16,7 @@ The goal is to provide a clear, high-level view that matches the Google Draw nav
    - 3D LiDAR / depth cameras: Unitree 4D Lidar L1, Intel RealSense D435i, Synexens CS20  
    - Global tracking: Vive 2 Tracker  
 
-2. **Localization**
+2. **Localization (Separate sub-stack, but may be interdependent)**
    - A robot_localization / Kalman filter node fuses IMU and wheel odometry (and possibly other sensors) to produce:
      - Filtered `nav_msgs/Odometry` in the `odom` frame  
      - TF `odom -> base_link`
