@@ -25,11 +25,11 @@ On startup, this node waits until it has received at least one valid pose in bot
 
 When both poses are available and time-synchronized closely enough:
 
-- It computes the rigid-body transform \(T_{\text{map\_odom}}\) such that  
-  \(T_{\text{map\_odom}} \cdot T_{\text{odom\_base\_link}} = T_{\text{map\_base\_link}}\).
+- It computes the rigid-body transform `T_map_odom` such that  
+  `T_map_odom * T_odom_base_link = T_map_base_link`.
 - Here:
-  - \(T_{\text{odom\_base\_link}}\) comes from the `odom_pose` input.
-  - \(T_{\text{map\_base\_link}}\) comes from `graph_slam_pose`.
+  - `T_odom_base_link` comes from the `odom_pose` input.
+  - `T_map_base_link` comes from `graph_slam_pose`.
 
 The node then:
 
