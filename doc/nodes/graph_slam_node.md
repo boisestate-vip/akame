@@ -4,7 +4,7 @@
 
 This node is the primary 2D Graph SLAM backend for the navigation stack, as was explained in 'Mapping Options' slide of the 25-2026 PDR (Option A). The idea is for this node to correspond with the Pino SLAM functionality from last year’s navigation stack, with the map -> odom transform factored out into a separate Map–Odom Broadcaster node. 
 
-It maintains a 2D pose graph, produces a `nav_msgs/OccupancyGrid` map in the `map` frame, and publishes the robot pose in `map` for use by planners and other nodes. It does not directly publish the `map -> odom` transform; that responsibility is delegated to the Map–Odom Broadcaster node.
+It maintains a 2D pose graph, produces a `nav_msgs/OccupancyGrid` map in the `map` frame, and publishes the robot pose in `map` for use by planners and other nodes. It does not directly publish the `map -> odom` transform (That responsibility is delegated to the Map–Odom Broadcaster node).
 
 ## Inputs
 
