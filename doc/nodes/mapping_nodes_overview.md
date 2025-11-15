@@ -2,9 +2,9 @@
 
 ## Overview
 
-This document summarizes the mapping slice of the navigation stack for Option A (2D Graph SLAM). It explains how sensor drivers, localization, mapping nodes, and downstream planners fit together.
+This document summarizes the mapping slice of the navigation stack for Option A: 2D Graph SLAM (As discussed in PDR presentation). It explains how sensor drivers, localization, mapping nodes, and downstream planners fit into the Mapping stack.
 
-The goal is to provide a clear, high-level view that matches the Google Draw navigation diagram and the individual node documents in this directory.
+The goal is to provide a clear, high-level view that can be used to coordinate the navigation diagram and the individual Mapping node documents in this directory.
 
 ## Data flow (high level)
 
