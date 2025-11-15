@@ -41,16 +41,5 @@ will be set in configuration files based on the specific sensor mounting and use
 
 If we are not using 3D sensors for mapping in a particular configuration, this node can be disabled, and the SLAM backend can subscribe directly to a physical 2D LiDAR topic instead.
 
-## Visual node (Google Draw)
-
-Label the box: **“PointCloud → LaserScan”**.
-
-Connect:
-
-- Incoming arrows from:
-  - 3D sensor boxes that publish `sensor_msgs/PointCloud2` (e.g., Unitree 4D Lidar L1, Intel RealSense D435i, Synexens CS20).
-- Outgoing arrow to:
-  - The **Graph SLAM (2D Map)** box, feeding its `scan` input.
-
 [1]: https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/PointCloud2.msg  
 [2]: https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg
