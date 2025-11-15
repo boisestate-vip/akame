@@ -1,6 +1,6 @@
 # Mapping Nodes Overview
 
-NOTE TO TEAM: Feel free to delete this, but I included it just to make sure the 3 proposed mapping node documentations (graph_slam_node.md, map_odom_broadcaster.md, and pointcloud_to_laserscan_node.md make sense at least conceptually.
+NOTE TO TEAM: Feel free to delete this, but I included it just to make sure the 3 proposed mapping node documentations (graph_slam_node.md, map_odom_broadcaster.md, and pointcloud_to_laserscan_node.md) make sense... at least conceptually.
 
 ## Overview
 
