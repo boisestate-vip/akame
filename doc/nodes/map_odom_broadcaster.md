@@ -8,16 +8,16 @@ It combines a robot pose in `map` (from the Graph SLAM Node) with a robot pose i
 
 ## Inputs
 
-| name            | msg type                         | description                                                                            |
-|----------------|-----------------------------------|----------------------------------------------------------------------------------------|
-| graph_slam_pose| [geometry_msgs/PoseStamped][1]    | Robot pose estimate in the `map` frame from the Graph SLAM Node                        |
-| odom_pose      | [nav_msgs/Odometry][2]            | Filtered robot pose estimate in the `odom` frame from the localization node(s)         |
+| name            | msg type                        | description                                                                                 |
+|-----------------|----------------------------------|---------------------------------------------------------------------------------------------|
+| graph_slam_pose | [geometry_msgs/PoseStamped][1]  | Robot pose estimate in the `map` frame from the Graph SLAM Node                             |
+| odom_pose       | [nav_msgs/Odometry][2]          | Filtered robot pose estimate in the `odom` frame from the localization node(s)             |
 
 ## Outputs
 
-| name          | msg type      | description                                        |
-|---------------|---------------|----------------------------------------------------|
-| map_to_odom_tf| TF transform  | Broadcast of the `map -> odom` transform on `/tf`  |
+| name          | msg type     | description                                           |
+|---------------|-------------|-------------------------------------------------------|
+| map_to_odom_tf| TF transform| Broadcast of the `map -> odom` transform on `/tf`    |
 
 ## Implementation
 
@@ -25,13 +25,11 @@ On startup, this node waits until it has received at least one valid pose in bot
 
 When both poses are available and time-synchronized closely enough:
 
-- It computes the rigid-body transform \( T_{\text{map\_odom}} \) such that  
-  \( T_{\text{map\_odom}} \cdot T_{\text{odom\_base\_link}} = T_{\text{map\_base\_link}} \).
-
-Where:
-
-- \( T_{\text{odom\_base\_link}} \) comes from the `odom_pose` input.
-- \( T_{\text{map\_base\_link}} \) comes from `graph_slam_pose`.
+- It computes the rigid-body transform \(T_{\text{map\_odom}}\) such that  
+  \(T_{\text{map\_odom}} \cdot T_{\text{odom\_base\_link}} = T_{\text{map\_base\_link}}\).
+- Here:
+  - \(T_{\text{odom\_base\_link}}\) comes from the `odom_pose` input.
+  - \(T_{\text{map\_base\_link}}\) comes from `graph_slam_pose`.
 
 The node then:
 
@@ -46,7 +44,7 @@ This node owns the `map -> odom` transform for Option A. Mapping and planning co
 
 Exact synchronization behavior, timeouts, and `frame_id` values will be finalized in the node’s configuration and launch files.
 
-## Diagram placement (Google Draw)
+## Visual node (Google Draw)
 
 Label the box: **“Map–Odom Broadcaster”**.
 
