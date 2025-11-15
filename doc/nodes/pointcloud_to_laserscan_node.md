@@ -21,7 +21,7 @@ It allows the Graph SLAM Node to consume LaserScan-like data even when the under
 
 ## Implementation
 
-This node is expected to use the standard `pointcloud_to_laserscan` pattern.
+This node is expected to use a standard `pointcloud_to_laserscan` pattern. I belive that in typical launch files, scan_out will be remapped to the Graph SLAM Node’s scan input topic (e.g. scan).
 
 High-level behavior:
 
