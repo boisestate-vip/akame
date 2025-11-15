@@ -21,7 +21,7 @@ It combines a robot pose in `map` (from the Graph SLAM Node) with a robot pose i
 
 ## Implementation
 
-On startup, this node waits until it has received at least one valid pose in both the `map` and `odom` frames.
+On startup, this node waits until it has received at least one valid pose in both the `map` and `odom` frames. The idea is for the transform computation to be identical to the mapping backend’s implementation from last year's "Kurome" design. This node would simply own the TF broadcast instead of the SLAM node.
 
 When both poses are available and time-synchronized closely enough:
 
