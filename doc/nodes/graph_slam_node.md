@@ -4,26 +4,26 @@
 
 This node is the primary 2D Graph SLAM backend for the navigation stack (Option A).
 
-It maintains a 2D pose graph, produces an `OccupancyGrid` map in the `map` frame, and publishes a SLAM-based pose estimate in `map` for use by planners and other nodes. It does **not** directly publish the `map -> odom` transform; that responsibility is delegated to the Map–Odom Broadcaster node.
+It maintains a 2D pose graph, produces a `nav_msgs/OccupancyGrid` map in the `map` frame, and publishes the robot pose in `map` for use by planners and other nodes. It does not directly publish the `map -> odom` transform; that responsibility is delegated to the Map–Odom Broadcaster node.
 
 ## Inputs
 
-| name        | msg type                       | description                                                                                                   |
-|------------|---------------------------------|---------------------------------------------------------------------------------------------------------------|
-| scan       | [sensor_msgs/LaserScan][1]      | 2D laser scan data from a planar LiDAR (e.g. YDLIDAR GS2)                                                    |
-| cloud_in   | [sensor_msgs/PointCloud2][2]    | (Optional) 3D point cloud data from a depth camera or 3D LiDAR, if used for mapping                          |
-| odom_in    | [nav_msgs/Odometry][3]          | Filtered odometry in the `odom` frame from the localization node(s)                                          |
-| beacon_in  | [nav_msgs/Odometry][3]          | (Optional) Global pose/odometry source (e.g. Vive tracker, GNSS). Used as a stronger absolute reference      |
-| cmd_vel    | [geometry_msgs/Twist][4]        | (Optional) Commanded base velocity, used when integrating velocity directly instead of using twist in `odom_in` |
-| reset_graph| [std_msgs/Empty][5]             | (Optional) Signal to clear or reinitialize the pose graph and map                                            |
+| name       | msg type                       | description                                                                                       |
+|------------|--------------------------------|---------------------------------------------------------------------------------------------------|
+| scan       | [sensor_msgs/LaserScan][1]     | 2D laser scan data from a planar LiDAR (e.g. YDLIDAR GS2)                                        |
+| cloud_in   | [sensor_msgs/PointCloud2][2]   | (Optional) 3D point cloud data from a depth camera or 3D LiDAR, if used for mapping             |
+| odom_in    | [nav_msgs/Odometry][3]         | Filtered odometry in the `odom` frame from the localization node(s)                             |
+| beacon_in  | [nav_msgs/Odometry][3]         | (Optional) Global pose/odometry source (e.g. Vive tracker, GNSS). Used as a stronger reference  |
+| cmd_vel    | [geometry_msgs/Twist][4]       | (Optional) Commanded base velocity, used when integrating velocity directly                      |
+| reset_graph| [std_msgs/Empty][5]            | (Optional) Signal to clear or reinitialize the pose graph and map                               |
 
 ## Outputs
 
-| name              | msg type                             | description                                                                                   |
-|-------------------|---------------------------------------|-----------------------------------------------------------------------------------------------|
-| map               | [nav_msgs/OccupancyGrid][6]          | 2D occupancy grid map in the `map` frame                                                      |
-| graph_slam_pose   | [geometry_msgs/PoseStamped][7]       | SLAM-based robot pose estimate in the `map` frame (derived from the last optimized graph node) |
-| graph_slam_markers| [visualization_msgs/MarkerArray][8]  | (Optional) Visualization of the pose graph, constraints, and keyframes for RViz               |
+| name               | msg type                            | description                                                                                 |
+|--------------------|--------------------------------------|---------------------------------------------------------------------------------------------|
+| map                | [nav_msgs/OccupancyGrid][6]          | 2D occupancy grid map in the `map` frame                                                    |
+| graph_slam_pose    | [geometry_msgs/PoseStamped][7]       | Robot pose estimate in the `map` frame (derived from the last optimized graph node)        |
+| graph_slam_markers | [visualization_msgs/MarkerArray][8]  | Optional visualization of the pose graph, constraints, and keyframes for RViz               |
 
 ## Implementation
 
@@ -31,10 +31,10 @@ This node wraps a 2D Graph SLAM backend implemented in C++ using a pose graph an
 
 High-level behavior:
 
-- Ingests odometry-like inputs (`odom_in`, optionally `beacon_in`) along with range measurements (`scan`, optionally `cloud_in`) and packages them into observations.
+- Ingests odometry-like inputs (`odom_in`, optionally `beacon_in`) along with range measurements (`scan`, optionally `cloud_in`) and packages them into “observations”.
 - For each observation, chooses the best input pose to anchor that observation:
-  - If a fresh `beacon_in` message is available (within a configured timeout), uses the beacon pose as the global reference.
-  - Otherwise, uses the `odom_in` pose transformed into the current `map` frame using the last `map -> odom` estimate.
+  - If a fresh `beacon_in` message is available (within a configured timeout), use the beacon pose as the global reference.
+  - Otherwise, use the `odom_in` pose transformed into the current `map` frame using the last `map -> odom` estimate.
 - Optionally integrates motion between observations using either:
   - The twist fields in `odom_in` (if `use_odom_vel` is true), or
   - The separate `cmd_vel` topic (if `use_odom_vel` is false).
@@ -56,46 +56,46 @@ Exact parameter values will be set in configuration files, but the main categori
 
 ### Frontend / observation parameters
 
-- `scan_in`, `cloud_in`, `odom_in`, `beacon_in`, `vel_in`, `reset_in`:  
+- `scan_in`, `cloud_in`, `odom_in`, `beacon_in`, `vel_in`, `reset_in`  
   Topic names for the LaserScan, PointCloud2, odometry, beacon, velocity, and reset inputs.
-- `aggregate_sensor_data`, `aggregation_interval`:  
+- `aggregate_sensor_data`, `aggregation_interval`  
   Control whether individual sensor messages are aggregated into a single combined observation and how often that aggregated observation is flushed into the SLAM backend.
-- `use_odom_vel`:  
+- `use_odom_vel`  
   Selects whether the motion model uses the twist fields from `odom_in` or the separate `cmd_vel` topic.
-- `estimate_movement_updates`:  
+- `estimate_movement_updates`  
   Enables or disables integrating the motion model between discrete measurements.
-- `time_error`:  
+- `time_error`  
   Allowed time difference between sensor measurements and odometry when building an observation.
-- `beacon_lost_time`:  
+- `beacon_lost_time`  
   Time threshold for treating `beacon_in` as stale; beyond this, the node falls back to odom-based pose.
-- `fix_beacon_nodes`:  
+- `fix_beacon_nodes`  
   Controls whether graph nodes associated with beacon-based poses are treated as fixed anchors.
 
 ### Graph-SLAM backend parameters
 
-- `algorithm`:  
+- `algorithm`  
   SLAM backend selection (e.g., `"builtin"` for the default implementation).
-- `bin_size`:  
+- `bin_size`  
   Spatial binning size for organizing graph nodes and accelerating nearest-neighbor lookups.
-- `linear_update_dist`, `angular_update_dist`:  
+- `linear_update_dist`, `angular_update_dist`  
   Minimum translation and rotation required before adding a new node to the graph.
-- `lidar_acceptance_threshold`, `point_cloud_acceptance_threshold`:  
+- `lidar_acceptance_threshold`, `point_cloud_acceptance_threshold`  
   Matching quality thresholds used to accept or reject scan / point cloud matches.
-- `node_association_dist`:  
+- `node_association_dist`  
   Distance threshold for associating new observations with existing nodes.
-- `recent_length`:  
+- `recent_length`  
   Number of recent nodes considered during local optimization and loop closure checks.
-- `loop_closure_dist`:  
+- `loop_closure_dist`  
   Distance threshold for triggering loop closure checks between non-adjacent nodes.
 
 ### Map publication parameters
 
-- `map_out`:  
+- `map_out`  
   Topic name for the `nav_msgs/OccupancyGrid` output.
-- `map_publish_interval`:  
+- `map_publish_interval`  
   Interval (seconds) used for map and visualization publishing.
 
-## Diagram placement (Google Draw)
+## Visual node (Google Draw)
 
 Label the box: **“Graph SLAM (2D Map)”**.
 
@@ -107,7 +107,7 @@ Connect:
   - The Vive / global tracking box (for `beacon_in`, if used).
 - Outgoing arrows to:
   - A “Map” / planner box (consumes `map`).
-  - The Map–Odom Broadcaster box (consumes `graph_slam_pose`).
+  - The **Map–Odom Broadcaster** box (consumes `graph_slam_pose`).
   - RViz / visualization (consumes `graph_slam_markers`).
 
 [1]: https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg  
