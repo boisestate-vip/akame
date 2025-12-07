@@ -17,7 +17,7 @@ It allows the Graph SLAM Node to consume LaserScan-like data even when the under
 
 | name     | msg type                    | description                                                       |
 |----------|-----------------------------|-------------------------------------------------------------------|
-| scan_out | [sensor_msgs/LaserScan][2]  | 2D laser scan approximation generated from the incoming point cloud |
+| cloud_out | [sensor_msgs/LaserScan][2]  | 2D laser scan approximation generated from the incoming point cloud |
 
 ## Implementation
 
