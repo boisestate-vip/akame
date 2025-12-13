@@ -1,19 +1,90 @@
+// // Current behavior of pc_to_ls (as it exists today):
+// - Subscribes to /cloud_in (sensor_msgs::msg::PointCloud2).
+// - Uses tf2::doTransform to transform the cloud into a target frame (right now hard-coded "map").
+// - Walks the point fields (x, y, z) via collect_points(...).
+// - Crops points based on z height (with a hardcoded cull_range).
+// - Flattens to 2D and publishes:
+// - A 2D PointCloud2 on /cloud_out, with only x and y fields.
+
+// What it does not do yet:
+
+// No LaserScan output at all (PointCloud → LaserScan path is incomplete).
+
+// There is:
+
+// No sensor_msgs::msg::LaserScan publisher.
+
+// No scan_out topic.
+
+// No computation of ranges[], angle_min/angle_max/angle_increment, etc.
+
+// So downstream nodes that want a 2D LiDAR-like scan (like Kurome’s LidarData/Graph SLAM style) can’t use this node yet.
+
+// No LaserScan input path (LaserScan → PointCloud) implemented.
+
+// Caleb explicitly mentioned:
+
+// “LaserScan to PointCloud additions, add new subscription and callback. There’s no doTransform for LaserScan, so we’ll have to write our own.”
+
+// Right now:
+
+// There is no Subscription<sensor_msgs::msg::LaserScan> in pc_to_ls.
+
+// No callback that takes a LaserScan and converts it to a PointCloud2 in some target frame.
+
+// That LS→PC path is useful both for:
+
+// Debugging / visualization, and
+
+// Having a single node that “normalizes” both 3D PCs and 2D scans into a similar representation.
+
+// No parameter-driven LaserScan geometry or height slice.
+
+// Vertical filtering is hard-coded instead of driven by min_height/max_height params.
+
+// No parameters for angle_min, angle_max, angle_increment, range_min, range_max are used.
+
+// Your doc (pointcloud_to_laserscan_node.md) expects those.
+
+// So for our node he wants:
+
+// A similar “LaserScan → (x,y)” mapping.
+
+// A similar TF-aware transform of those points into a target frame.
+
+// Then pack that into PointCloud2.
+
+// We do not need:
+
+// The Observation allocation,
+
+// SLAM aggregation,
+
+// slam_system->insert_observation(...),
+
+// Beacon vs odom logic.
+
 
 #include <chrono>
 #include <memory>
 #include <string>
 #include <functional>
+#include <limits>
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/msg/point_field.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"
+#include <cmath>  /* for std::sqrt, std::atan2, std::fabs */
 
 #include "tf2/exceptions.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_sensor_msgs/tf2_sensor_msgs.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -37,12 +108,28 @@ public:
    PcToLs() : Node("pc_to_ls") {
 
       cloud_out = this->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_out", 10);
+      /* LaserScan output topic */
+      scan_out = this->create_publisher<sensor_msgs::msg::LaserScan>("/scan_out", 10);
+
       cloud_in = this->create_subscription<sensor_msgs::msg::PointCloud2>("/cloud_in",10,std::bind(&PcToLs::process_cloud, this, _1));
+      /* Optional: LaserScan -> PointCloud path */
+      scan_in = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan_in",10,std::bind(&PcToLs::process_scan, this, _1));
 
       tf_buffer =
          std::make_unique<tf2_ros::Buffer>(this->get_clock());
       tf_listener =
          std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
+
+      /* Parameters for cropping and scan geometry */
+      this->declare_parameter<double>("min_height", -0.1);
+      this->declare_parameter<double>("max_height",  0.1);
+
+      this->declare_parameter<double>("angle_min", -3.14);
+      this->declare_parameter<double>("angle_max", 3.14);
+      this->declare_parameter<double>("angle_increment", 0.01);
+
+      this->declare_parameter<double>("range_min", 0.05);
+      this->declare_parameter<double>("range_max", 20.0);
 
    }
 
@@ -50,6 +137,12 @@ private:
 
    std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::PointCloud2>> cloud_in;
    std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> cloud_out;
+
+   /* LaserScan publisher (PointCloud -> LaserScan) */
+   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::LaserScan>> scan_out;
+
+   /* Optional: LaserScan subscriber (LaserScan -> PointCloud) */
+   std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::LaserScan>> scan_in;
 
    std::shared_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
    std::unique_ptr<tf2_ros::Buffer> tf_buffer;
@@ -94,6 +187,7 @@ private:
             break;
       }
    }
+
 
    void collect_points(std::vector<point3> & points, const sensor_msgs::msg::PointCloud2 & msg) {
 
@@ -179,12 +273,16 @@ private:
       collect_points(points,msg_transformed);
 
       /* TODO(*): make this a parameter */
-      double cull_range = 0.1;
+      // double cull_range = 0.1;
+      double min_height = this->get_parameter("min_height").as_double();
+      double max_height = this->get_parameter("max_height").as_double();
       for (point3 & point : points) {
 
-         double dist = point.z;
-         if (std::fabs(dist) < cull_range)
+         if (point.z < min_height || point.z > max_height)
             continue;
+         // double dist = point.z;
+         // if (std::fabs(dist) < cull_range)
+         //    continue;
 
          points_out.push_back((point2){.x=point.x,.y=point.y});
       }
@@ -229,6 +327,189 @@ private:
          msg_2d.data.push_back(data[i]);
 
       cloud_out->publish(msg_2d);
+
+      /* Build LaserScan message from 2D points (PointCloud -> LaserScan) */
+
+      double angle_min       = this->get_parameter("angle_min").as_double();
+      double angle_max       = this->get_parameter("angle_max").as_double();
+      double angle_increment = this->get_parameter("angle_increment").as_double();
+      double range_min       = this->get_parameter("range_min").as_double();
+      double range_max       = this->get_parameter("range_max").as_double();
+
+      /* LaserScan geometry */
+      int num_bins = (int)((angle_max - angle_min) / angle_increment);
+
+      if (num_bins <= 0) {
+         RCLCPP_WARN(this->get_logger(),"PcToLs: invalid LaserScan geometry (num_bins <= 0)");
+         return;
+      }
+
+      sensor_msgs::msg::LaserScan scan;
+
+      scan.header = msg_2d.header;
+      scan.header.frame_id = new_frame_id;
+
+      scan.angle_min       = angle_min;
+      scan.angle_max       = angle_max;
+      scan.angle_increment = angle_increment;
+      scan.range_min       = range_min;
+      scan.range_max       = range_max;
+
+      scan.time_increment  = 0.0;
+      scan.scan_time       = 0.0;
+
+      scan.ranges.assign(num_bins, std::numeric_limits<float>::infinity());
+      scan.intensities.assign(num_bins, 0.0f);
+
+      for (point2 & point : points_out) {
+
+         double r = std::sqrt(point.x*point.x + point.y*point.y);
+         if (r < range_min || r > range_max)
+            continue;
+
+         double theta = std::atan2(point.y, point.x);
+
+         if (theta < angle_min || theta > angle_max)
+            continue;
+
+         int index = (int)((theta - angle_min) / angle_increment);
+
+         if (index < 0 || index >= num_bins)
+            continue;
+
+         float r_f = (float)r;
+         if (r_f < scan.ranges[index]) {
+            scan.ranges[index] = r_f;
+            /* intensities[index] can stay 0 for now */
+         }
+      }
+
+      scan_out->publish(scan);
+   }
+
+   void process_scan(const sensor_msgs::msg::LaserScan & msg) {
+
+      /* Convert LaserScan into 3D points in the scan frame (z=0) */
+
+      int entries = (int)((msg.angle_max - msg.angle_min) / msg.angle_increment);
+      if (entries <= 0) {
+         RCLCPP_WARN(this->get_logger(),"PcToLs: invalid LaserScan geometry (entries <= 0)");
+         return;
+      }
+
+      std::vector<point3> points_scan;
+      points_scan.reserve(entries);
+
+      for (int i = 0; i < entries; ++i) {
+
+         if (i >= (int)msg.ranges.size())
+            break;
+
+         double r = msg.ranges[i];
+
+         if (r < msg.range_min || r > msg.range_max)
+            continue;
+
+         /* LaserScan to points, serves as our "doTransform" */
+         double angle = msg.angle_min + msg.angle_increment*i;
+         double x = r * std::cos(angle);
+         double y = r * std::sin(angle);
+
+         points_scan.push_back((point3){.x=x,.y=y,.z=0.0});
+      }
+
+      if (points_scan.empty()) {
+         return;
+      }
+
+      /* Look up transform from scan frame to target_frame (e.g. map) */
+      std::string target_frame = "map";   /* could also be a parameter */
+      std::string scan_frame   = msg.header.frame_id;
+
+      /* Transform points from scan frame into target_frame */
+      geometry_msgs::msg::TransformStamped transform;
+      try {
+         transform = tf_buffer->lookupTransform(
+            target_frame,
+            scan_frame,
+            tf2::TimePointZero);
+      }
+      catch (tf2::TransformException & ex) {
+         RCLCPP_WARN(this->get_logger(),"PcToLs: %s",ex.what());
+         return;
+      }
+
+      tf2::Transform tf;
+      tf2::fromMsg(transform.transform, tf);
+
+      /* Apply transform to each point (LaserScan -> target frame) */
+      std::vector<point3> points_out;
+      points_out.reserve(points_scan.size());
+
+      for (point3 & point : points_scan) {
+
+         tf2::Vector3 p(point.x, point.y, point.z);
+         tf2::Vector3 p_t = tf * p;
+
+         points_out.push_back((point3){
+            .x = p_t.x(),
+            .y = p_t.y(),
+            .z = p_t.z()
+         });
+      }
+
+      /* Pack into a PointCloud2, similar to process_cloud’s msg_2d */
+
+      sensor_msgs::msg::PointCloud2 cloud_msg;
+
+      cloud_msg.header = msg.header;
+      cloud_msg.header.frame_id = target_frame;
+
+      cloud_msg.width  = points_out.size();
+      cloud_msg.height = 1;
+
+      sensor_msgs::msg::PointField field_x;
+      field_x.name = "x";
+      field_x.offset = 0;
+      field_x.datatype = sensor_msgs::msg::PointField::FLOAT64;
+      field_x.count = 1;
+
+      sensor_msgs::msg::PointField field_y;
+      field_y.name = "y";
+      field_y.offset = 8;
+      field_y.datatype = sensor_msgs::msg::PointField::FLOAT64;
+      field_y.count = 1;
+
+      sensor_msgs::msg::PointField field_z;
+      field_z.name = "z";
+      field_z.offset = 16;
+      field_z.datatype = sensor_msgs::msg::PointField::FLOAT64;
+      field_z.count = 1;
+
+      cloud_msg.fields.clear();
+      cloud_msg.fields.push_back(field_x);
+      cloud_msg.fields.push_back(field_y);
+      cloud_msg.fields.push_back(field_z);
+
+      cloud_msg.is_bigendian = false;
+      cloud_msg.point_step   = 24;
+      cloud_msg.row_step     = cloud_msg.point_step * cloud_msg.width;
+      cloud_msg.is_dense     = true;
+
+      cloud_msg.data.resize(cloud_msg.row_step);
+
+      for (std::size_t i = 0; i < points_out.size(); ++i) {
+
+         const point3 & p = points_out[i];
+
+         std::size_t offset = i*cloud_msg.point_step;
+
+         std::memcpy(&cloud_msg.data[offset+0], &p.x, 8);
+         std::memcpy(&cloud_msg.data[offset+8], &p.y, 8);
+         std::memcpy(&cloud_msg.data[offset+16],&p.z, 8);
+      }
+
+      cloud_out->publish(cloud_msg);
    }
 
 };
