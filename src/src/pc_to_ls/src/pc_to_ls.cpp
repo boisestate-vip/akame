@@ -54,6 +54,9 @@ public:
          std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
 
       /* Parameters for cropping and scan geometry */
+
+      this->declare_parameter<double>("cull_range", 0.1);  // 0.0 = disabled
+
       this->declare_parameter<double>("min_height", -0.1);
       this->declare_parameter<double>("max_height",  0.1);
 
@@ -209,15 +212,24 @@ private:
       // double cull_range = 0.1;
       double min_height = this->get_parameter("min_height").as_double();
       double max_height = this->get_parameter("max_height").as_double();
+      double cull_range = this->get_parameter("cull_range").as_double();
       for (point3 & point : points) {
 
+         // 1) Keep only points inside the slice
          if (point.z < min_height || point.z > max_height)
             continue;
+
+         // 2) Optionally drop a thin band around z = 0
+         if (cull_range > 0.0 && std::fabs(point.z) < cull_range)
+            continue;
+
+         // if (point.z < min_height || point.z > max_height)
+         //    continue;
          // double dist = point.z;
          // if (std::fabs(dist) < cull_range)
          //    continue;
-
-         points_out.push_back((point2){.x=point.x,.y=point.y});
+         points_out.push_back(point2{ point.x, point.y });
+         // points_out.push_back((point2){.x=point.x,.y=point.y});
       }
 
       msg_2d.width = points_out.size();
