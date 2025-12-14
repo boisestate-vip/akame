@@ -55,7 +55,7 @@ public:
 
       /* Parameters for cropping and scan geometry */
 
-      this->declare_parameter<double>("cull_range", 0.1);  // 0.0 = disabled
+      this->declare_parameter<double>("cull_range", 0.0);  // 0.0 = disabled
 
       this->declare_parameter<double>("min_height", -0.1);
       this->declare_parameter<double>("max_height",  0.1);
