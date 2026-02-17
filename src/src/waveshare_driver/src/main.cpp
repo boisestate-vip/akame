@@ -123,6 +123,12 @@ static int try_connect(const char * device, int baud) {
       return -1;
    }
 
+   int res2 = tcsetattr(fd,TCSANOW,&t);
+   if (res2 < 0) {
+      perror("tcsetattr");
+      return -1;
+   }
+
    return fd;
 }
 
@@ -137,22 +143,28 @@ public:
       /* the device to connect to for interacting with the waveshare
        * PLEASE set this to a serial input, otherwise you could get
        * weird issues.                                             */
-      this->declare_parameter("waveshare_device","/dev/serial/by-id/***");
+      this->declare_parameter("waveshare_device","/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_f8837f430001f0118fbcc1295c2a50c9-if00-port0");
 
       /* the baud rate to communicate with the waveshare robot on */
       // https://www.waveshare.com/wiki/WAVE_ROVER#Issue_JSON_Commands_Using_GPIO_or_USB_Serial_Port
       this->declare_parameter("waveshare_baud",115200);
 
+      /* below are measured values from our waveshare robots */
+
       /* the radius of the wheels for the differential drive calculation (meters) */
-      this->declare_parameter("wheel_radius",1.0);
+      this->declare_parameter("wheel_radius",0.037);
 
       /* the width of the vehicle for the differential drive calculation (meters) */
-      this->declare_parameter("vehicle_width",1.0);
+      this->declare_parameter("vehicle_width",0.076);
 
       /* setup variables */
       cmd_in = this->create_subscription<geometry_msgs::msg::Twist>(
             this->get_parameter("cmd_in").as_string(), 10,
             std::bind(&WaveshareDriver::collect_cmd_vel, this, _1));
+
+      cmd_callback = this->create_wall_timer(
+               std::chrono::seconds(1),
+               std::bind(&WaveshareDriver::periodic_publish, this));
 
       /* save the diff-drive values */
       b2 = this->get_parameter("wheel_radius").as_double() / 2.0;
@@ -172,6 +184,9 @@ public:
                      this->get_parameter("waveshare_device").as_string().c_str(),
                      this->get_parameter("waveshare_baud").as_int());
       }
+
+      last_lwh = 0.0;
+      last_rwh = 0.0;
    }
 
 private:
@@ -188,11 +203,18 @@ private:
    /* input ros node */
    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_in;
 
+   /* timer for periodic value transmission */
+   rclcpp::TimerBase::SharedPtr cmd_callback;
+
+   /* periodic transmission values */
+   double last_lwh, last_rwh;
+
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/Twist.msg
    // https://en.wikipedia.org/wiki/Differential_wheeled_robot
    // https://www.waveshare.com/wiki/WAVE_ROVER#Chassis_Movement
    void collect_cmd_vel(const geometry_msgs::msg::Twist & msg) {
+      RCLCPP_INFO(this->get_logger(),"collecting vel: %f %f\n",msg.linear.x,msg.angular.z);
 
       double w = msg.angular.z;
       double V = msg.linear.x;
@@ -200,9 +222,20 @@ private:
       double rwh = (V + (w * b2)) / r;
       double lwh = (V - (w * b2)) / r;
 
+      write_values(lwh,rwh);
+      last_lwh = lwh;
+      last_rwh = rwh;
+   }
+
+   void periodic_publish() {
+      write_values(last_lwh,last_rwh);
+   }
+
+   void write_values(double lwh, double rwh) {
       char buf[256];
       memset(buf,0,sizeof(char)*256);
       snprintf(buf,255,"{\"T\":1,\"L\":%.10f,\"R\":%.10f}\n",lwh,rwh);
+      printf("sending message: %s",buf);
 
       int buflen = strlen(buf);
 
