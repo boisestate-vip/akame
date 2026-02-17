@@ -267,6 +267,9 @@ public:
          this->get_parameter("map_start_weight").as_int(),
          10.0,10.0 // 10 meters by 10 meters seems conservative :/
       );
+
+      /* ensure that map frame is done */
+      broadcast_map_frame();
    }
 
 private:
