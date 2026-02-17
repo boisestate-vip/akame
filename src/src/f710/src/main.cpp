@@ -10,6 +10,9 @@
  * felt it was the best way to go about things.
  */
 
+#include <thread>
+#include <mutex>
+
 #include <rclcpp/rclcpp.hpp>
 
 #include "geometry_msgs/msg/twist.hpp"
@@ -45,14 +48,6 @@ static int try_connect(const char * device) {
    return fd;
 }
 
-/* artifact of f710_cli_new :) */
-#define NANOSECONDS_PER_SECOND 1000000000
-clock_t CLOCK() {
-   struct timespec uptime;
-   clock_gettime(CLOCK_MONOTONIC,&uptime);
-   return 1e9 * uptime.tv_sec + uptime.tv_nsec;
-}
-
 class F710 : public rclcpp::Node {
 public:
 
@@ -62,13 +57,13 @@ public:
       this->declare_parameter("vel_out","cmd_vel");
 
       /* maximum velocity to scale everything by */
-      this->declare_parameter("max_vel", 3.0);
+      this->declare_parameter("max_vel", 1.0);
 
       /* the device to connect to the controller on */
-      this->declare_parameter("device","/dev/hidraw0");
+      this->declare_parameter("device","/dev/hidraw1");
 
       /* whether to ask the user for the above paramters instead */
-      this->declare_parameter("interactive",true);
+      this->declare_parameter("interactive",false);
 
       /* interval in seconds to publish messages
        * Setting this higher will result in a smoother
@@ -94,7 +89,8 @@ public:
          max_vel = strtod(velbuf,NULL);
       }
       else {
-         device = this->get_parameter("device").as_string().c_str();
+         std::string device_str = this->get_parameter("device").as_string();
+         device = device_str.c_str();
          max_vel = this->get_parameter("max_vel").as_double();
       }
 
@@ -106,35 +102,58 @@ public:
          exit(1);
       }
 
-      geometry_msgs::msg::Twist msg;
-      msg.linear.x = 0; msg.linear.y = 0;
-      msg.linear.z = 0; msg.angular.x = 0;
-      msg.angular.y = 0; msg.angular.z = 0;
+      last_twist.linear.x = 0; last_twist.linear.y = 0;
+      last_twist.linear.z = 0; last_twist.angular.x = 0;
+      last_twist.angular.y = 0; last_twist.angular.z = 0;
+
+      cmd_callback = this->create_wall_timer(
+            std::chrono::milliseconds((long)(1000.0 *
+                  this->get_parameter("publish_rate").as_double())),
+            std::bind(&F710::publish_cmd_vel, this));
+
+      f710_thread = std::thread(&F710::get_f710_values, this);
+   }
+
+private:
+
+   /* reception area for the scans */
+   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_out;
+
+   /* callback interval to publish twist */
+   rclcpp::TimerBase::SharedPtr cmd_callback;
+
+   /* up to date twist to publish from f710 thread */
+   geometry_msgs::msg::Twist last_twist;
+   std::mutex twist_lock;
+
+   std::thread f710_thread;
+
+   /* the connection we are listening on */
+   int fd;
+
+   /* velocity multiplier */
+   double max_vel;
+
+   /* publish rate in seconds */
+   double publish_rate;
+
+   void publish_cmd_vel() {
+      twist_lock.lock();
+         cmd_out->publish(last_twist);
+      twist_lock.unlock();
+   }
+
+   void get_f710_values() {
+
       struct f710_status stat;
-      uint64_t last_clock = 0;
 
       /* we do all our processing in the initializer... */
       while (HARUNA_IS_BEST_GIRL) {
 
-         
-         uint64_t raw_dist = CLOCK() - last_clock;
-         double time_dist = (double)(raw_dist) / NANOSECONDS_PER_SECOND;
-         if (time_dist > publish_rate) {
-            last_clock = CLOCK();
-         }
-         else {
-            /* wait the given time period */
-            struct timespec waiter;
-            waiter.tv_sec = raw_dist / NANOSECONDS_PER_SECOND;
-            waiter.tv_nsec = raw_dist % NANOSECONDS_PER_SECOND;
-            nanosleep(&waiter,NULL);
-            continue;
-         }
-
          if (f710_read_next(fd,&stat)) {
 
-            double lwh = ((double)(stat.lv_fr - 127) / 128.0) * max_vel;
-            double rwh = ((double)(stat.rv_fr - 127) / 128.0) * max_vel;
+            double lwh = ((double)(stat.lv_fr - 127) / -128.0) * max_vel;
+            double rwh = ((double)(stat.rv_fr - 127) / -128.0) * max_vel;
 
             /* here we compute the angular velocity assuming
              * a value of 1.0 for b. This seems logical to
@@ -146,27 +165,13 @@ public:
             double w = rwh - lwh;
             double V = (rwh + lwh) / 2.0;
 
-            msg.linear.x = V;
-            msg.angular.z = w;
-
-            cmd_out->publish(msg);
+            twist_lock.lock();
+               last_twist.linear.x = V;
+               last_twist.angular.z = w;
+            twist_lock.unlock();
          }
       }
    }
-
-private:
-
-   /* reception area for the scans */
-   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_out;
-
-   /* the connection we are listening on */
-   int fd;
-
-   /* velocity multiplier */
-   double max_vel;
-
-   /* publish rate in seconds */
-   double publish_rate;
 
 };
 
