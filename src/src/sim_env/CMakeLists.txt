@@ -7,8 +7,17 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+
+add_executable(rewrite src/rewrite.cpp)
+ament_target_dependencies(rewrite rclcpp sensor_msgs)
 
 # install project
+install(
+   TARGETS rewrite
+   DESTINATION lib/${PROJECT_NAME}
+)
 install(
   DIRECTORY src launch rviz config world
   DESTINATION share/${PROJECT_NAME}

@@ -30,6 +30,7 @@
 
 #include "map.hpp"
 #include "points.hpp"
+#include "stdio.h"
 
 using std::placeholders::_1;
 
@@ -51,6 +52,7 @@ double quaternion_to_z_rotation(const geometry_msgs::msg::Quaternion & q) {
 }
 
 pose_2d ros2_pose_to_pose_2d(const geometry_msgs::msg::Pose & p) {
+   printf("converting from %f %f ...\n",p.position.x,p.position.y);
    return {p.position.x,p.position.y,quaternion_to_z_rotation(p.orientation)};
 }
 
@@ -78,6 +80,8 @@ Points scan_to_points(const sensor_msgs::msg::LaserScan & scan, pose_2d & transf
 
    Points data = Points(transform.x,transform.y);
 
+   printf("got transform as: %f %f %f\n",transform.x,transform.y,transform.t);
+
    /* it is worth precomputing these */
    double cost = std::cos(transform.t);
    double sint = std::sin(transform.t);
@@ -95,6 +99,7 @@ Points scan_to_points(const sensor_msgs::msg::LaserScan & scan, pose_2d & transf
       /* now we convert into the 'real' coordinates */
       double x = raw_x * cost - raw_y * sint + transform.x;
       double y = raw_x * sint + raw_y * cost + transform.y;
+      printf("transforming from %f %f to %f %f\n",raw_x,raw_y,x,y);
 
       /* insert the point into our collection */
       data.add_point(point2{x, y});
@@ -206,17 +211,17 @@ public:
       this->declare_parameter("publish_map_frame",true);
 
       /* topic to listen for source-of-truth odometry on */
-      this->declare_parameter("pos_in","odom");
+      this->declare_parameter("pos_in","/demo/odom");
       /* topic to listen for incoming point cloud data on */
-      this->declare_parameter("points_in","points");
+      this->declare_parameter("points_in","/points");
       /* topic to listen for incoming lidar data on */
-      this->declare_parameter("scan_in","scan");
+      this->declare_parameter("scan_in","/demo/scan");
 
       /* topic to listen on for a reset input */
-      this->declare_parameter("reset_in","simple_map/reset");
+      this->declare_parameter("reset_in","/simple_map/reset");
 
       /* parameters for the map */
-      this->declare_parameter("map_resolution",1.0); /* meters */
+      this->declare_parameter("map_resolution",0.1); /* meters */
       this->declare_parameter("map_hit_weight",40); 
       this->declare_parameter("map_miss_weight",10);
       this->declare_parameter("map_start_weight",50);
@@ -320,6 +325,7 @@ private:
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Odometry.msg
    void collect_pos(const nav_msgs::msg::Odometry & msg) {
       last_pos = ros2_pose_to_pose_2d(msg.pose.pose);
+      RCLCPP_INFO(this->get_logger(),"got pose as : %f %f %f\n",last_pos.x,last_pos.y,last_pos.t);
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg
@@ -336,18 +342,18 @@ private:
          geometry_msgs::msg::PoseStamped pose_in;
          geometry_msgs::msg::PoseStamped pose_out;
          pose_in.header = msg.header;
-         tf_buffer->transform<geometry_msgs::msg::PoseStamped>(pose_in,pose_out,"map",
-               tf2::Duration(std::chrono::milliseconds(200)));
+         tf_buffer->transform<geometry_msgs::msg::PoseStamped>(pose_in,pose_out,"odom",
+               tf2::Duration(std::chrono::milliseconds(500)));
 
          pose_2d transform = ros2_pose_to_pose_2d(pose_out.pose);
 
-         Points data = scan_to_points(msg,transform);
+         Points data = scan_to_points(msg,last_pos);
 
          map.add_points(data);
          fail_count = 0;
       }
       catch(const tf2::TransformException & ex) {
-         RCLCPP_WARN(this->get_logger(),"transformation of scan failed for the %dth time",fail_count++);
+         RCLCPP_WARN(this->get_logger(),"transformation of scan failed for the %dth time: %s to %s",fail_count++,msg.header.frame_id.c_str(),"map");
          return;
       }
    }
@@ -364,8 +370,8 @@ private:
           * transform it into the reference frame we want without having to manually
           * apply the transforms.                                                   */
          sensor_msgs::msg::PointCloud2 cloud_out;
-         tf_buffer->transform<sensor_msgs::msg::PointCloud2>(msg,cloud_out,"map",
-               tf2::Duration(std::chrono::milliseconds(200)));
+         tf_buffer->transform<sensor_msgs::msg::PointCloud2>(msg,cloud_out,"odom",
+               tf2::Duration(std::chrono::milliseconds(500)));
 
          // we use last pos here because we don't have the transform
          Points data = cloud_to_points(msg, last_pos); 
@@ -375,7 +381,7 @@ private:
 
       }
       catch(const tf2::TransformException & ex) {
-         RCLCPP_WARN(this->get_logger(),"transformation of point cloud failed for the %dth time",fail_count++);
+         RCLCPP_WARN(this->get_logger(),"transformation of point cloud failed for the %dth time: %s to %s",fail_count++,msg.header.frame_id.c_str(),"map");
          return;
       }
    }
@@ -388,6 +394,7 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/OccupancyGrid.msg
    void publish_map() {
+      RCLCPP_INFO(this->get_logger(),"publishing map");
       nav_msgs::msg::OccupancyGrid msg;
       map.to_msg(msg);
 
@@ -400,6 +407,7 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/TransformStamped.msg
    void broadcast_map_frame() {
+      RCLCPP_INFO(this->get_logger(),"publishing map frame");
       geometry_msgs::msg::TransformStamped msg;
       msg.header.frame_id = "map";
       msg.child_frame_id = "odom";

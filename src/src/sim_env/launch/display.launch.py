@@ -30,6 +30,11 @@ def generate_launch_description():
         output='screen',
         arguments=['-d', LaunchConfiguration('rvizconfig')],
     )
+    rewrite_node = Node(
+        package='sim_env',
+        executable='rewrite',
+        name='rewrite',
+    )
     gz_server = GzServer(
         world_sdf_file=world_path,
         container_name='ros_gz_container',
@@ -63,4 +68,5 @@ def generate_launch_description():
         gz_server,
         ros_gz_bridge,
         spawn_entity,
+        rewrite_node,
     ])

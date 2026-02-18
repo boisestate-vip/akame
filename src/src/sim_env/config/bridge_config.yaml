@@ -4,7 +4,7 @@
   gz_type_name: "gz.msgs.Clock"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/demo/imu"
+- ros_topic_name: "/imu"
   gz_topic_name: "/demo/imu"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"

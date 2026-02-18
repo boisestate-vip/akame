@@ -6,6 +6,7 @@
 #include "points.hpp"
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <chrono>
@@ -146,10 +147,12 @@ public:
       /* I will confess that I don't know a ton of the details about
        * this algorithm, only that it works well for these purposes */
       
-      int32_t x0 = (int32_t)(xs / resolution) + xmin;
-      int32_t y0 = (int32_t)(ys / resolution) + ymin;
-      int32_t x1 = (int32_t)(xe / resolution) + xmin;
-      int32_t y1 = (int32_t)(ye / resolution) + ymin;
+      int32_t x0 = (int32_t)(xs / resolution) - xmin;
+      int32_t y0 = (int32_t)(ys / resolution) - ymin;
+      int32_t x1 = (int32_t)(xe / resolution) - xmin;
+      int32_t y1 = (int32_t)(ye / resolution) - ymin;
+
+      printf("x0: %d, y0: %d, x1: %d, y1: %d\n",x0,y0,x1,y1);
 
       int32_t dx = std::abs(x1 - x0);
       int32_t sx = x0 < x1 ? 1 : -1;
@@ -161,8 +164,9 @@ public:
       y1 *= xlen;
 
       while (1) {
+         printf("step: x0: %d, y0: %d, x1: %d, y1: %d\n",x0,y0,x1,y1);
 
-         map[x0 + y0] = std::min(map[x0 + y0] - miss_weight, ROS2_MAPLOW);
+         map[x0 + y0] = std::max(map[x0 + y0] - miss_weight, ROS2_MAPLOW);
 
          int32_t e2 = 2 * error;
          if (e2 >= dy) {
@@ -181,10 +185,11 @@ public:
        * We include the miss weight because
        * we need to undo our action of applying
        * it earlier (in the last iteration...) */
-      map[x0 + y0] = std::max(map[x0 + y0] + miss_weight + hit_weight, ROS2_MAPHIGH);
+      map[x0 + y0] = std::min(map[x0 + y0] + miss_weight + hit_weight, ROS2_MAPHIGH);
    }
 
    void add_points(Points & p) {
+      printf("growing map to: %f %f %f %f\n",p.xmin,p.ymin,p.xmax,p.ymax);
       this->grow_to(p.xmin,p.ymin,p.xmax,p.ymax);
 
       /* iterate over the vector using the underlying pointer.
@@ -198,8 +203,10 @@ public:
        * Why am I doing it then? 
        * because it looks cooler...                         */
       point2 * end = p.points.data() + p.points.size();
-      for (point2 * entry = p.points.data(); entry < end; entry += 1)
+      for (point2 * entry = p.points.data(); entry < end; entry += 1) {
+         printf("adding point: %f %f -> %f %f\n",p.xcenter,p.ycenter,entry->x,entry->y);
          this->add_observation(p.xcenter,p.ycenter,entry->x,entry->y);
+      }
 
       /* and that is it! */
    }
