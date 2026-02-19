@@ -10,33 +10,33 @@
 using std::placeholders::_1;
 
 /* this is the actual ros node. The class is the node. */
-class SimRewrite : public rclcpp::Node {
+class TestRewrite : public rclcpp::Node {
 public:
 
-   SimRewrite() : Node("sim_env_rewrite") {
+   TestRewrite() : Node("test_env_rewrite") {
 
       /* now instantiate our subscriptions to our information sources */
       scan_in = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/scan", 10,
-            std::bind(&SimRewrite::rewrite_scan, this, _1));
+            std::bind(&TestRewrite::rewrite_scan, this, _1));
       scan_out = this->create_publisher<sensor_msgs::msg::LaserScan>(
             "/demo/scan",10);
 
       imu_in = this->create_subscription<sensor_msgs::msg::Imu>(
             "/imu", 10,
-            std::bind(&SimRewrite::rewrite_imu, this, _1));
+            std::bind(&TestRewrite::rewrite_imu, this, _1));
       imu_out = this->create_publisher<sensor_msgs::msg::Imu>(
             "/demo/imu",10);
 
       scan_points_in = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             "/scan/points", 10,
-            std::bind(&SimRewrite::rewrite_scan_points, this, _1));
+            std::bind(&TestRewrite::rewrite_scan_points, this, _1));
       scan_points_out = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/demo/scan/points",10);
 
       depth_camera_points_in = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             "/depth_camera/points", 10,
-            std::bind(&SimRewrite::rewrite_depth_camera_points, this, _1));
+            std::bind(&TestRewrite::rewrite_depth_camera_points, this, _1));
       depth_camera_points_out = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/demo/depth_camera/points",10);
 
@@ -89,7 +89,7 @@ private:
 
 int main(int argc, char ** argv) {
    rclcpp::init(argc,argv);
-   rclcpp::spin(std::make_shared<SimRewrite>());
+   rclcpp::spin(std::make_shared<TestRewrite>());
    rclcpp::shutdown();
    return 0;
 }

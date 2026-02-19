@@ -82,8 +82,8 @@ public:
 
       int32_t xlow_i  = (int32_t)(xlow / resolution)  - xmin;
       int32_t ylow_i  = (int32_t)(ylow / resolution)  - ymin;
-      int32_t xhigh_i = (int32_t)(xhigh / resolution) - (xmin + xlen);
-      int32_t yhigh_i = (int32_t)(yhigh / resolution) - (ymin + ylen);
+      int32_t xhigh_i = (int32_t)(xhigh / resolution) - (xmin + xlen) + 1;
+      int32_t yhigh_i = (int32_t)(yhigh / resolution) - (ymin + ylen) + 1;
 
       /* based on the above work, if any of the below is true
        * then we need to expand the map.                     */
@@ -121,8 +121,8 @@ public:
          /* do the risky work of copying things over... */
          /* we put y in the outer loop because it allows us to keep cachelines in
           * memory longer.                                                       */
-         for (uint32_t oldy = 0, newy = -new_ymin; oldy < xlen*ylen; oldy += xlen, newy += new_xlen) {
-            for (uint32_t oldx = 0, newx = -new_xmin; oldx < xlen; ++oldx) {
+         for (uint32_t oldy = 0, newy = (ymin-new_ymin)*new_xlen; oldy < xlen*ylen; oldy += xlen, newy += new_xlen) {
+            for (uint32_t oldx = 0, newx = xmin-new_xmin; oldx < xlen; ++oldx, ++newx) {
                new_map[newx + newy] = map[oldx + oldy];
             }
          }
@@ -140,7 +140,7 @@ public:
 
    /* add an observation (lidar or point cloud) starting at x/y s and ending
     * at x/y e. No checking for out of bounds in this function.             */
-   void add_observation(double xs, double ys, double xe, double ye) {
+   void add_observation(double xs, double ys, double xe, double ye, int obstacle=1) {
 
       // what follows is an implimentation of
       // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm#
@@ -152,8 +152,6 @@ public:
       int32_t x1 = (int32_t)(xe / resolution) - xmin;
       int32_t y1 = (int32_t)(ye / resolution) - ymin;
 
-      printf("x0: %d, y0: %d, x1: %d, y1: %d\n",x0,y0,x1,y1);
-
       int32_t dx = std::abs(x1 - x0);
       int32_t sx = x0 < x1 ? 1 : -1;
       int32_t dy = -std::abs(y1 - y0);
@@ -164,7 +162,6 @@ public:
       y1 *= xlen;
 
       while (1) {
-         printf("step: x0: %d, y0: %d, x1: %d, y1: %d\n",x0,y0,x1,y1);
 
          map[x0 + y0] = std::max(map[x0 + y0] - miss_weight, ROS2_MAPLOW);
 
@@ -185,11 +182,11 @@ public:
        * We include the miss weight because
        * we need to undo our action of applying
        * it earlier (in the last iteration...) */
-      map[x0 + y0] = std::min(map[x0 + y0] + miss_weight + hit_weight, ROS2_MAPHIGH);
+      if (obstacle)
+         map[x0 + y0] = std::min(map[x0 + y0] + miss_weight + hit_weight, ROS2_MAPHIGH);
    }
 
    void add_points(Points & p) {
-      printf("growing map to: %f %f %f %f\n",p.xmin,p.ymin,p.xmax,p.ymax);
       this->grow_to(p.xmin,p.ymin,p.xmax,p.ymax);
 
       /* iterate over the vector using the underlying pointer.
@@ -204,8 +201,7 @@ public:
        * because it looks cooler...                         */
       point2 * end = p.points.data() + p.points.size();
       for (point2 * entry = p.points.data(); entry < end; entry += 1) {
-         printf("adding point: %f %f -> %f %f\n",p.xcenter,p.ycenter,entry->x,entry->y);
-         this->add_observation(p.xcenter,p.ycenter,entry->x,entry->y);
+         this->add_observation(p.xcenter,p.ycenter,entry->x,entry->y,entry->has_obstacle);
       }
 
       /* and that is it! */

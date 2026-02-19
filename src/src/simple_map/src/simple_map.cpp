@@ -32,6 +32,17 @@
 #include "points.hpp"
 #include "stdio.h"
 
+#include <cmath>
+
+/* the first two here are checking for straighforward illigal
+ * floating values. The last guy takes advantage of a property
+ * that a nan or inf will never compare equal to itself.
+ *
+ * The x != x check I think is one of the only good cross
+ * platform ways to determine floating point nan/inf, though
+ * it is very odd to look at...                              */
+#define BAD_VAL(x) (std::isnan(x) || std::isinf(x) || x != x)
+
 using std::placeholders::_1;
 
 /* this first bit is some ported math code from kurome.
@@ -52,7 +63,6 @@ double quaternion_to_z_rotation(const geometry_msgs::msg::Quaternion & q) {
 }
 
 pose_2d ros2_pose_to_pose_2d(const geometry_msgs::msg::Pose & p) {
-   printf("converting from %f %f ...\n",p.position.x,p.position.y);
    return {p.position.x,p.position.y,quaternion_to_z_rotation(p.orientation)};
 }
 
@@ -80,31 +90,28 @@ Points scan_to_points(const sensor_msgs::msg::LaserScan & scan, pose_2d & transf
 
    Points data = Points(transform.x,transform.y);
 
-   printf("got transform as: %f %f %f\n",transform.x,transform.y,transform.t);
-
    /* it is worth precomputing these */
    double cost = std::cos(transform.t);
    double sint = std::sin(transform.t);
 
-   double angle = scan.angle_min;
+   double angle = scan.angle_min - scan.angle_increment;
    for (size_t i = 0; i < scan.ranges.size(); ++i) {
 
-      if (scan.ranges[i] < scan.range_min || scan.ranges[i] > scan.range_max)
-         continue; /* skip anything outside of range */
+      angle += scan.angle_increment;
+
+      if (scan.ranges[i] < scan.range_min)
+         continue; /* skip anything inside of range */
 
       /* these values are relative to the sensor */
-      double raw_x = std::cos(angle) * scan.ranges[i];
-      double raw_y = std::sin(angle) * scan.ranges[i];
+      double raw_x = std::cos(angle) * std::min(scan.ranges[i], scan.range_max);
+      double raw_y = std::sin(angle) * std::min(scan.ranges[i], scan.range_max);
 
       /* now we convert into the 'real' coordinates */
       double x = raw_x * cost - raw_y * sint + transform.x;
       double y = raw_x * sint + raw_y * cost + transform.y;
-      printf("transforming from %f %f to %f %f\n",raw_x,raw_y,x,y);
 
       /* insert the point into our collection */
-      data.add_point(point2{x, y});
-
-      angle += scan.angle_increment;
+      data.add_point(point2{x, y, scan.ranges[i] < scan.range_max});
    }
 
    return data;
@@ -162,7 +169,8 @@ Points cloud_to_points(const sensor_msgs::msg::PointCloud2 & cloud, pose_2d & tr
             float x, y;
             memcpy(&x,&cloud.data[i+xoff],sizeof(float));
             memcpy(&y,&cloud.data[i+yoff],sizeof(float));
-            data.add_point(point2{(double)x,(double)y});
+            if (!BAD_VAL(x) && !BAD_VAL(y))
+               data.add_point(point2{(double)x,(double)y,1});
          }
          break;
       case 1: // double x, float y
@@ -171,7 +179,8 @@ Points cloud_to_points(const sensor_msgs::msg::PointCloud2 & cloud, pose_2d & tr
             float y;
             memcpy(&x,&cloud.data[i+xoff],sizeof(double));
             memcpy(&y,&cloud.data[i+yoff],sizeof(float));
-            data.add_point(point2{x,(double)y});
+            if (!BAD_VAL(x) && !BAD_VAL(y))
+               data.add_point(point2{x,(double)y,1});
          }
          break;
       case 2: // float x, double y
@@ -180,7 +189,8 @@ Points cloud_to_points(const sensor_msgs::msg::PointCloud2 & cloud, pose_2d & tr
             double y;
             memcpy(&x,&cloud.data[i+xoff],sizeof(float));
             memcpy(&y,&cloud.data[i+yoff],sizeof(double));
-            data.add_point(point2{(double)x,y});
+            if (!BAD_VAL(x) && !BAD_VAL(y))
+               data.add_point(point2{(double)x,y,1});
          }
          break;
       case 3: // double x, double y
@@ -188,7 +198,8 @@ Points cloud_to_points(const sensor_msgs::msg::PointCloud2 & cloud, pose_2d & tr
             double x, y;
             memcpy(&x,&cloud.data[i+xoff],sizeof(double));
             memcpy(&y,&cloud.data[i+yoff],sizeof(double));
-            data.add_point(point2{x,y});
+            if (!BAD_VAL(x) && !BAD_VAL(y))
+               data.add_point(point2{x,y,1});
          }
          break;
 
@@ -325,7 +336,6 @@ private:
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Odometry.msg
    void collect_pos(const nav_msgs::msg::Odometry & msg) {
       last_pos = ros2_pose_to_pose_2d(msg.pose.pose);
-      RCLCPP_INFO(this->get_logger(),"got pose as : %f %f %f\n",last_pos.x,last_pos.y,last_pos.t);
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg
@@ -347,7 +357,7 @@ private:
 
          pose_2d transform = ros2_pose_to_pose_2d(pose_out.pose);
 
-         Points data = scan_to_points(msg,last_pos);
+         Points data = scan_to_points(msg,transform);
 
          map.add_points(data);
          fail_count = 0;
@@ -374,7 +384,7 @@ private:
                tf2::Duration(std::chrono::milliseconds(500)));
 
          // we use last pos here because we don't have the transform
-         Points data = cloud_to_points(msg, last_pos); 
+         Points data = cloud_to_points(cloud_out, last_pos); 
 
          map.add_points(data);
          fail_count = 0;
@@ -394,7 +404,6 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/OccupancyGrid.msg
    void publish_map() {
-      RCLCPP_INFO(this->get_logger(),"publishing map");
       nav_msgs::msg::OccupancyGrid msg;
       map.to_msg(msg);
 
@@ -407,7 +416,6 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/TransformStamped.msg
    void broadcast_map_frame() {
-      RCLCPP_INFO(this->get_logger(),"publishing map frame");
       geometry_msgs::msg::TransformStamped msg;
       msg.header.frame_id = "map";
       msg.child_frame_id = "odom";

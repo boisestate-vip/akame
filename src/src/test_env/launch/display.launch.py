@@ -10,7 +10,7 @@ from ros_gz_bridge.actions import RosGzBridge
 from ros_gz_sim.actions import GzServer
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory('sim_env')
+    pkg_share = get_package_share_directory('test_env')
     default_model_path = os.path.join(pkg_share, 'src', 'description', 'test_bot.sdf')
     default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'config.rviz')
     ros_gz_sim_share = get_package_share_directory('ros_gz_sim')
@@ -29,11 +29,6 @@ def generate_launch_description():
         name='rviz2',
         output='screen',
         arguments=['-d', LaunchConfiguration('rvizconfig')],
-    )
-    rewrite_node = Node(
-        package='sim_env',
-        executable='rewrite',
-        name='rewrite',
     )
     gz_server = GzServer(
         world_sdf_file=world_path,
@@ -56,6 +51,11 @@ def generate_launch_description():
             'entity_name': 'test_bot',
             'z': '0.65',
         }.items(),
+    )
+    rewrite_node = Node(
+        package='test_env',
+        executable='rewrite',
+        name='rewrite',
     )
 
     return LaunchDescription([

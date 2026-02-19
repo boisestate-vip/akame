@@ -3,10 +3,12 @@
 
 #define __AKAME_POINTS
 #include <vector>
+#include <cfloat>
 
 struct point2 {
    double x;
    double y;
+   int has_obstacle;
 };
 
 class Points {
@@ -14,14 +16,16 @@ public:
 
    double xcenter;
    double ycenter;
-   double xmin;
-   double ymin;
-   double xmax;
-   double ymax;
+   double xmin = FLT_MAX; /* flt max/min are both positive */
+   double ymin = FLT_MAX;
+   double xmax = -FLT_MAX;
+   double ymax = -FLT_MAX;
 
    std::vector<point2> points;
 
-   Points(double xcenter, double ycenter) : xcenter(xcenter), ycenter(ycenter) {}
+   Points(double xcenter, double ycenter) : xcenter(xcenter), ycenter(ycenter) {
+      points = std::vector<point2>();
+   }
 
    void add_point(point2 p) {
 
