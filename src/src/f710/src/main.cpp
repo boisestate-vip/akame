@@ -54,7 +54,7 @@ public:
    F710() : Node("f710") {
 
       /* the topic to listen for scans on */
-      this->declare_parameter("vel_out","cmd_vel");
+      this->declare_parameter("vel_out","/cmd_vel");
 
       /* maximum velocity to scale everything by */
       this->declare_parameter("max_vel", 1.0);
@@ -63,7 +63,7 @@ public:
       this->declare_parameter("device","/dev/hidraw1");
 
       /* whether to ask the user for the above paramters instead */
-      this->declare_parameter("interactive",false);
+      this->declare_parameter("interactive",true);
 
       /* interval in seconds to publish messages
        * Setting this higher will result in a smoother
@@ -154,6 +154,7 @@ private:
 
             double lwh = ((double)(stat.lv_fr - 127) / -128.0) * max_vel;
             double rwh = ((double)(stat.rv_fr - 127) / -128.0) * max_vel;
+            printf("lwh: %lf, rwh: %lf\n",lwh,rwh);
 
             /* here we compute the angular velocity assuming
              * a value of 1.0 for b. This seems logical to
