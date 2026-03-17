@@ -38,15 +38,16 @@ public:
        * settable using the ./configid script from
        * https://github.com/unitreerobotics/unitree_actuator_sdk/tree/main/motor_tools
        */
-      this->declare_parameter("left_motor_id",1);
-      this->declare_parameter("right_motor_id",0);
+      this->declare_parameter("left_motor_id",0);
+      this->declare_parameter("right_motor_id",1);
 
       /* damping values */
       this->declare_parameter("position_damping",0.005);
       this->declare_parameter("velocity_damping",0.01);
 
       /* the radius of the wheels for the differential drive calculation (meters) */
-      this->declare_parameter("wheel_radius",0.037);
+      //this->declare_parameter("wheel_radius",0.037);
+      this->declare_parameter("wheel_radius",1.0);
 
       /* the width of the vehicle for the differential drive calculation (meters) */
       this->declare_parameter("vehicle_width",0.076);
@@ -74,7 +75,7 @@ public:
       RCLCPP_INFO(this->get_logger(),"connecting to device %s",
                   serial_l_device.c_str());
       try {
-         serial_l = SerialPort(serial_l_device);
+         serial_l = new SerialPort(serial_l_device);
       } 
       catch (IOException &) {
          RCLCPP_ERROR(this->get_logger(),"caught io exception connecting to %s, exiting",serial_l_device.c_str());
@@ -84,7 +85,7 @@ public:
       RCLCPP_INFO(this->get_logger(),"connecting to device %s",
                   serial_r_device.c_str());
       try {
-         serial_r = SerialPort(serial_r_device);
+         serial_r = new SerialPort(serial_r_device);
       } 
       catch (IOException &) {
          RCLCPP_ERROR(this->get_logger(),"caught io exception connecting to %s, exiting",serial_r_device.c_str());
@@ -115,8 +116,8 @@ private:
    int right_id;
 
    /* serial devices we are interacting with the 8010 on */
-   SerialPort serial_l = SerialPort();
-   SerialPort serial_r = SerialPort(); 
+   SerialPort * serial_l;
+   SerialPort * serial_r; 
 
    /* input ros node */
    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_in;
@@ -164,8 +165,12 @@ private:
       cmd_r.dq = rwh * gearRatio;
       cmd_l.tau = cmd_r.tau = 0.0;
 
-      serial_l.sendRecv(&cmd_l,&data_l);
-      serial_r.sendRecv(&cmd_r,&data_r);
+      try {
+         serial_l->sendRecv(&cmd_l,&data_l);
+         serial_r->sendRecv(&cmd_r,&data_r);
+      } catch (IOException &) {
+         perror("error");
+      }
    }
 };
 
