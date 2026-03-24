@@ -25,3 +25,8 @@ with using them.
 A directory containing documentation on expected ROS2 nodes
 that will be used in the project. Nodes in this directory
 are planned and may not be complete or may be cancelled.
+
+<a name="central_controller"></a>
+## [central_controller.md](central_controller.md)
+
+Documentation describing the inputs and outputs for the central_controller node.
