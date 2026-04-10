@@ -4,7 +4,7 @@ from rclpy.node import Node
 
 # imports message types the node subscribes and publishes to
 from nav_msgs.msg import OccupancyGrid
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float64
 
 # enum is used for the robot's state-machine, random for simple exploration behavior
@@ -33,13 +33,6 @@ class CentralController(Node):
 
         self.pose_sub = self.create_subscription(
             PoseStamped, 'pose_in', self.pose_callback, 10)
-
-        # Perception topics for zone detection
-        self.dig_zone_sub = self.create_subscription(
-            Point, 'dig_zone_center', self.dig_zone_callback, 10)
-
-        self.dump_zone_sub = self.create_subscription(
-            Point, 'dump_zone_center', self.dump_zone_callback, 10)
 
         # -----------------------------
         # publishers (outputs)
@@ -74,14 +67,6 @@ class CentralController(Node):
         self.pose = msg
         self.update_state_machine()
 
-    def dig_zone_callback(self, msg: Point):
-        self.dig_zone = (msg.x, msg.y)
-        self.get_logger().info(f"Dig zone detected at {self.dig_zone}")
-
-    def dump_zone_callback(self, msg: Point):
-        self.dump_zone = (msg.x, msg.y)
-        self.get_logger().info(f"Dump zone detected at {self.dump_zone}")
-
     # ============================================================
     # state-machine logic
     # ============================================================
@@ -96,11 +81,8 @@ class CentralController(Node):
         # if dig_zone is known, go there. otherwise, search randomly
         # -------------------------
         if self.state == RobotState.SEARCH_FOR_DIG_ZONE:
-            if self.dig_zone is not None:
-                self.get_logger().info("→ NAV_TO_DIG")
-                self.state = RobotState.NAV_TO_DIG
-                return
-            self.publish_exploration_goal()
+            self.get_logger().info("→ NAV_TO_DIG")
+            self.state = RobotState.NAV_TO_DIG
             return
 
         # -------------------------
@@ -128,11 +110,8 @@ class CentralController(Node):
         # if dump_zone is known, go there. Otherwise, search randomly
         # -------------------------
         if self.state == RobotState.SEARCH_FOR_DUMP_ZONE:
-            if self.dump_zone is not None:
-                self.get_logger().info("→ NAV_TO_DUMP")
-                self.state = RobotState.NAV_TO_DUMP
-                return
-            self.publish_exploration_goal()
+            self.get_logger().info("→ NAV_TO_DUMP")
+            self.state = RobotState.NAV_TO_DUMP
             return
 
         # -------------------------
@@ -168,19 +147,6 @@ class CentralController(Node):
         goal.pose.position.x = x
         goal.pose.position.y = y
         self.goal_pub.publish(goal) # sends a PoseStamped goal to path generator
-
-    def publish_exploration_goal(self):
-        goal = PoseStamped()
-        goal.header.frame_id = 'map' # random walking until zone is found
-
-        # simple random exploration (replace with frontier exploration later)
-        goal.pose.position.x = random.uniform(0.0, 10.0)
-        goal.pose.position.y = random.uniform(0.0, 10.0)
-
-        self.goal_pub.publish(goal)
-        self.get_logger().info(
-            f"Exploring... new goal: ({goal.pose.position.x:.2f}, {goal.pose.position.y:.2f})"
-        )
 
     def publish_digging_commands(self): # digging arm and drum commands
         arm = Float64()
