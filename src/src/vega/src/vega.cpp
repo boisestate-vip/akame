@@ -1,5 +1,6 @@
 
 #include <functional>
+#include <string>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -21,6 +22,7 @@
 #include "nav_msgs/msg/map_meta_data.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include "nav_msgs/msg/path.hpp"
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/msg/point_field.hpp"
@@ -29,9 +31,9 @@
 #include "std_msgs/msg/empty.hpp"
 
 #include "map.hpp"
-#include "points.hpp"
-#include "stdio.h"
+#include "astar.hpp"
 
+#include <stdio.h>
 #include <cmath>
 
 /* the first two here are checking for straighforward illigal
@@ -110,9 +112,7 @@ public:
       this->declare_parameter("path_publish_interval",0.1);
 
       /* parameters for the map */
-      this->declare_parameter("map_resolution",0.1); /* meters */
-      this->declare_parameter("map_obstacle_threshold",40); 
-      this->declare_parameter("map_circle_radius",0.3);
+      this->declare_parameter("map_obstacle_threshold",1.0); 
 
       this->declare_parameter("repath_range",1.0);
       this->declare_parameter("full_repath_interval",3.0);
@@ -142,7 +142,9 @@ public:
                   this->get_parameter("path_publish_interval").as_double())),
             std::bind(&Vega::publish_path, this));
 
-
+      last_repath = 0;
+      repath_interval = std::ceil(this->get_parameter("full_repath_interval").as_double() * CLOCKS_PER_SECOND);
+      repath_dist = this->get_parameter("repath_range").as_double();
    }
 
 private:
@@ -150,26 +152,37 @@ private:
    /* === node variables === */
 
    /* the current seen position of the robot */
+   std::string ref_frame;
    pose_2d last_pos;
 
    /* the goal we are trying to get to */
    point_2d goal;
 
+   /* the map we are working off of */
+   GridMap map;
+
+   /* the pathfinding algorithm */
+   AStar path;
+
+   /* keeping track of when to repath */
+   clock_t last_repath;
+   clock_t repath_interval;
+
+   /* saving the repath distance */
+   double repath_dist;
+
    /* the topic we are publishing the map on and the timer that
     * triggers it to publish at the given interval.            */
-   rclcpp::Subscriber<nav_msgs::msg::OccupancyGrid>::SharedPtr map_in;
+   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_in;
 
    /* the topic we recieve odometry messages on */
    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pos_in;
-
-   /* the topic we recieve lidar input on */
-   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_in;
 
    /* the topic we recieve our reset commands on. */
    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_in;
 
    /* the topic the path is published on */
-   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_in;
+   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_out;
    /* path publish timer */
    rclcpp::TimerBase::SharedPtr path_callback;
 
@@ -178,95 +191,56 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Odometry.msg
    void collect_pos(const nav_msgs::msg::Odometry & msg) {
+      ref_frame = msg.header.frame_id;
       last_pos = ros2_pose_to_pose_2d(msg.pose.pose);
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/PoseStamped.msg
    void collect_goal(consst geometry_msgs::msg::PoseStamped & p) {
       goal = point_2d{p.pose.position.x,p.pose.position.y};
+      path.clear();
    }
 
-   // https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg
+   // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/OccupancyGrid.msg
    void collect_map(const nav_msgs::msg::OccupancyGrid & msg) {
-   }
-
-   // https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/PointCloud2.msg
-   void collect_points(const sensor_msgs::msg::PointCloud2 & msg) {
-      /* sort of lifted from my pino implimentation */
-      static int fail_count = 0;
-
-      /* convert the point cloud into the
-       * frame of reference for base_link */
-      try {
-         /* this guy is a bit better than the laser scan in that we can directly
-          * transform it into the reference frame we want without having to manually
-          * apply the transforms.                                                   */
-         sensor_msgs::msg::PointCloud2 cloud_out;
-         tf_buffer->transform<sensor_msgs::msg::PointCloud2>(msg,cloud_out,"odom",
-               tf2::Duration(std::chrono::milliseconds(500)));
-
-         // we use last pos here because we don't have the transform
-         Points data = cloud_to_points(cloud_out, last_pos); 
-
-         map.add_points(data);
-         fail_count = 0;
-
-      }
-      catch(const tf2::TransformException & ex) {
-         RCLCPP_WARN(this->get_logger(),"transformation of point cloud failed for the %dth time: %s to %s",fail_count++,msg.header.frame_id.c_str(),"map");
-         return;
-      }
+      if (map.from_msg(msg))
+         path.clear();
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/std_msgs/msg/Empty.msg
    void collect_reset(const std_msgs::msg::Empty & msg) {
       (void)msg;
       map.clear();
+      path.clear();
    }
 
-   // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/OccupancyGrid.msg
-   void publish_map() {
-      nav_msgs::msg::OccupancyGrid msg;
-      map.to_msg(msg);
+   // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Path.msg
+   void publish_path() {
+      nav_msgs::msg::Path msg;
 
-      msg.info.map_load_time = this->get_clock()->now();
+      /* you will note that we are treating the goal as the start.
+       * This produces better results for repathing.              */
+
+      if (clock() - last_repath > repath_interval) {
+         last_repath = clock();
+         path.route(goal.x,goal.y,last_pos.x,last_pos.y,&map);
+      }
+      else {
+         path.reroute(repath_dist,last_pos.x,last_pos.y,&map);
+      }
+
+      path.to_msg(msg,&map);
+      msg.header.frame_id = ref_frame;
       msg.header.stamp = this->get_clock()->now();
-      msg.header.frame_id = "map";
 
-      map_out->publish(msg);
-   }
-
-   // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/TransformStamped.msg
-   void broadcast_map_frame() {
-      geometry_msgs::msg::TransformStamped msg;
-      msg.header.frame_id = "map";
-      msg.child_frame_id = "odom";
-
-      /* because we are not doing any kind of slam or
-       * correction at this stage, we are basically
-       * assuming there is no difference between the map
-       * and the odom frames of reference.               */
-      pose_2d diff = { 0, 0, 0 };
-
-      /* map back into ros's representation */
-      msg.transform.translation.x = diff.x;
-      msg.transform.translation.y = diff.y;
-      msg.transform.translation.z = 0.0;
-      tf2::Quaternion q; q.setRPY(0.0,0.0,diff.t);
-      msg.transform.rotation.x = q.getX();
-      msg.transform.rotation.y = q.getY();
-      msg.transform.rotation.z = q.getZ();
-      msg.transform.rotation.w = q.getW();
-
-      msg.header.stamp = this->get_clock()->now();
-      map_frame->sendTransform(msg);
+      path_out->publish(msg);
    }
 
 };
 
 int main(int argc, char ** argv) {
    rclcpp::init(argc,argv);
-   rclcpp::spin(std::make_shared<SimpleMap>());
+   rclcpp::spin(std::make_shared<Vega>());
    rclcpp::shutdown();
    return 0;
 }
