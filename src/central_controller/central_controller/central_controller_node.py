@@ -101,7 +101,7 @@ class CentralController(Node):
         # lowers arms, spins drum, then searches where to dump (state-machine)
         # -------------------------
         if self.state == RobotState.DIG:
-            self.publish_digging_commands()
+            self.publish_arm_commands()
             self.get_logger().info("→ SEARCH_FOR_DUMP_ZONE")
             self.state = RobotState.SEARCH_FOR_DUMP_ZONE
             return
@@ -130,7 +130,7 @@ class CentralController(Node):
         # raises arms, reverses drum, searches for next dig zone (state-machine)
         # -------------------------
         if self.state == RobotState.DUMP:
-            self.publish_dumping_commands()
+            self.publish_arm_commands()
             self.get_logger().info("→ SEARCH_FOR_DIG_ZONE")
             self.state = RobotState.SEARCH_FOR_DIG_ZONE
             return
@@ -148,22 +148,15 @@ class CentralController(Node):
         goal.pose.position.y = y
         self.goal_pub.publish(goal) # sends a PoseStamped goal to path generator
 
-    def publish_digging_commands(self): # digging arm and drum commands
+    def publish_arm_commands(self):
         arm = Float64()
         drum = Float64()
-        arm.data = -0.5   # lower arm
-        drum.data = 5.0   # spin drum forward
+        arm.data = -0.5 #lower arm
+        drum.data = 3.0 if self.state == RobotState.DIG else -3.0 #spin drum
         self.arm_pub.publish(arm)
         self.drum_pub.publish(drum)
-
-    def publish_dumping_commands(self): # dumping arm and drum commands
-        arm = Float64()
-        drum = Float64()
-        arm.data = 1.0    # raise arm
-        drum.data = -3.0  # reverse drum
+        arm.data = 1.0 #raise arm
         self.arm_pub.publish(arm)
-        self.drum_pub.publish(drum)
-
 
 def main(args=None): # main function that takes in command-line args
     rclpy.init(args=args) # initializes ros2 client library
