@@ -18,34 +18,34 @@ class GridMap {
 private:
 
    /* resolution of the map in meters */
-   double resolution;
+   double resolution = 0.0;
 
    /* position of the bottom corner of the map.
     * Multiply by the resolution to get this in
     * the 'real' space.                        */
-   int32_t xmin;
-   int32_t ymin;
+   int32_t xmin = 0;
+   int32_t ymin = 0;
 
    /* radius in indicies of the circle */
-   double circle_rad_raw;
-   uint32_t circle_rad;
+   double circle_rad_raw = 0.0;
+   uint32_t circle_rad = 0;
 
    /* map data. Held as an array but represents a matrix */
    uint8_t * map = NULL;
 
    /* how much to increase measure on a obstacle hit */
-   int32_t hit_weight;
+   int32_t hit_weight = 0;
    /* how much to decrease measure on a obstacle miss */
-   int32_t miss_weight;
+   int32_t miss_weight = 0;
    /* value to place in the map at startup, 0 */
-   int32_t start_weight;
+   int32_t start_weight = 0;
 
 public:
 
    /* the size of the map in the x and y directions */
-   uint32_t xlen;
-   uint32_t ylen;
-   uint32_t len;
+   int32_t xlen = 0;
+   int32_t ylen = 0;
+   uint32_t len = 0;
 
 
    GridMap() {} // dummy for resting initialization
@@ -76,20 +76,26 @@ public:
       return resolution;
    }
 
-   void lens(uint32_t & x, uint32_t & y) {
+   void lens(int32_t & x, int32_t & y) {
       x = xlen;
       y = ylen;
    }
 
-   int is_obs(int idx) {
+   int is_obs(int32_t x, int32_t y, int32_t idx) {
 
-      if (len <= idx)
+      if (x < 0 || x >= xlen)
+         return 0;
+
+      if (y < 0 || y >= ylen)
+         return 0;
+
+      if (len <= (uint32_t)idx)
          return 0;
 
       if (idx < 0)
          return 0;
 
-      if (map[idx] <= hit_weight)
+      if (map[idx] >= hit_weight)
          return 1;
 
       return 0;
@@ -119,7 +125,7 @@ public:
       y = (double)(yi + ymin) * resolution;
    }
 
-   void getpos2(uint32_t xi, uint32_t yi, double & x, double & y) {
+   void getpos2(int32_t xi, int32_t yi, double & x, double & y) {
       x = (double)(xi + xmin) * resolution;
       y = (double)(yi + ymin) * resolution;
    }
@@ -185,8 +191,8 @@ public:
          /* do the risky work of copying things over... */
          /* we put y in the outer loop because it allows us to keep cachelines in
           * memory longer.                                                       */
-         for (uint32_t oldy = 0, newy = (ymin-new_ymin)*new_xlen; oldy < xlen*ylen; oldy += xlen, newy += new_xlen) {
-            for (uint32_t oldx = 0, newx = xmin-new_xmin; oldx < xlen; ++oldx, ++newx) {
+         for (uint32_t oldy = 0, newy = (ymin-new_ymin)*new_xlen; (int32_t)oldy < xlen*ylen; oldy += xlen, newy += new_xlen) {
+            for (uint32_t oldx = 0, newx = xmin-new_xmin; (int32_t)oldx < xlen; ++oldx, ++newx) {
                new_map[newx + newy] = map[oldx + oldy];
             }
          }
@@ -274,7 +280,7 @@ public:
       msg.info.origin.orientation.z = 0.0;
       msg.info.origin.orientation.w = 1.0;
 
-      for (uint32_t i = 0; i < xlen*ylen; ++i)
+      for (int32_t i = 0; i < xlen*ylen; ++i)
          msg.data.push_back(map[i]);
    }
 
@@ -282,36 +288,49 @@ public:
     * map using the given occupancy grid message.       
     *
     * returns true if the map grew/changed size.       */
-   int from_msg(nav_msgs::msg::OccupancyGrid & msg) {
+   int from_msg(nav_msgs::msg::OccupancyGrid const & msg) {
 
       resolution = msg.info.resolution;
-      xlen = msg.info.width;
-      ylen = msg.info.height;
-
-      xmin = std::round(msg.info.origin.position.x / resolution);
-      ymin = std::round(msg.info.origin.position.y / resolution);
-
 
       double extend = circle_rad * resolution;
-      double xlow = msg.info.origin.position.x  + extend;
-      double ylow = msg.info.origin.position.y  + extend;
-      double xhigh = xlow + (xlen * resolution) + extend;
-      double yhigh = ylow + (ylen * resolution) + extend;
+      double xlow = msg.info.origin.position.x - extend;
+      double ylow = msg.info.origin.position.y - extend;
+      double xhigh = xlow + (msg.info.width * resolution) + extend*2;
+      double yhigh = ylow + (msg.info.height * resolution) + extend*2;
 
+      int32_t old_xmin = msg.info.origin.position.x / resolution;
+      int32_t old_ymin = msg.info.origin.position.y / resolution;
+      int32_t old_xlen = msg.info.width;
+      int32_t old_ylen = msg.info.height;
       int res = grow_to(xlow,ylow,xhigh,yhigh);
+      memset(map,0,len); // clear the old map
+      int32_t xoff = old_xmin - xmin;
+      int32_t yoff = old_ymin - ymin;
 
-      uint8_t * back = msg.data.data() + msg.data.size();
-      uint8_t * pos = msg.data.data();
-      uint32_t idx = 0;
+      const uint8_t * back = (uint8_t *)(msg.data.data() + msg.data.size());
+      uint8_t * pos = (uint8_t *)msg.data.data();
+      uint32_t x = xoff;
+      uint32_t y = yoff * xlen;
       while (pos < back) {
-         if (hit_weight <= *pos)
-            internal_add_circle(idx,*pos);
+         if (hit_weight <= *pos) {
+            internal_add_circle(x+y,100);
+         }
+         x += 1;
+         if (x >= old_xlen+xoff) {
+            y += xlen;
+            x = xoff;
+         }
 
-         idx += 1;
          pos += 1;
       }
 
       return res;
+   }
+
+   void safe_add(int32_t pos, uint8_t val) {
+      if (pos < 0 || pos >= len)
+         return;
+      map[pos] = val;
    }
 
 private:
@@ -319,23 +338,43 @@ private:
    // https://en.wikipedia.org/wiki/Midpoint_circle_algorithm#Jesko's_method
    void internal_add_circle(uint32_t idx, uint8_t val) {
 
-      uint32_t t1 = circle_rad / 16, t2;
-      uint32_t x = circle_rad;
-      uint32_t y = 0;
-      uint32_t yidx = 0;
-      uint32_t xidx = x * xlen;
+      int32_t t1 = circle_rad / 16, t2;
+      int32_t x = circle_rad;
+      int32_t y = 0;
+      int32_t yidx = 0;
+      int32_t xidx = x * xlen;
 
       while (x >= y) {
 
-         map[idx + x + yidx] = 100;
-         map[idx - x + yidx] = 100;
-         map[idx - x - yidx] = 100;
-         map[idx + x - yidx] = 100;
+         /*
+         //printf("idx: %d\n",idx + x + yidx);
+         map[idx + x + yidx] = val;
+         //printf("idx: %d\n",idx - x + yidx);
+         map[idx - x + yidx] = val;
+         //printf("idx: %d\n",idx - x - yidx);
+         map[idx - x - yidx] = val;
+         //printf("idx: %d\n",idx + x - yidx);
+         map[idx + x - yidx] = val;
 
-         map[idx + y + xidx] = 100;
-         map[idx - y + xidx] = 100;
-         map[idx - y - xidx] = 100;
-         map[idx + y - xidx] = 100;
+         //printf("idx: %d\n",idx + y + xidx);
+         map[idx + y + xidx] = val;
+         //printf("idx: %d\n",idx - y + xidx);
+         map[idx - y + xidx] = val;
+         //printf("idx: %d\n",idx - y - xidx);
+         map[idx - y - xidx] = val;
+         //printf("idx: %d\n",idx + y - xidx);
+         map[idx + y - xidx] = val;
+         */
+
+         safe_add(idx + x + yidx,val);
+         safe_add(idx - x + yidx,val);
+         safe_add(idx - x - yidx,val);
+         safe_add(idx + x - yidx,val);
+
+         safe_add(idx + y + xidx,val);
+         safe_add(idx - y + xidx,val);
+         safe_add(idx - y - xidx,val);
+         safe_add(idx + y - xidx,val);
 
          yidx += xlen;
          y += 1;

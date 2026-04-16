@@ -4,6 +4,10 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "tf2/LinearMath/Quaternion.h"
+
+#include "visualization_msgs/msg/marker.hpp"
+
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/transform.hpp"
@@ -11,22 +15,10 @@
 
 #include "builtin_interfaces/msg/time.hpp"
 
-#include "tf2/LinearMath/Quaternion.h"
-#include "tf2_ros/transform_broadcaster.h"
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/buffer.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "tf2_sensor_msgs/tf2_sensor_msgs.hpp"
-#include "tf2/exceptions.h"
-
 #include "nav_msgs/msg/map_meta_data.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "nav_msgs/msg/path.hpp"
-
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include "sensor_msgs/msg/point_field.hpp"
-#include "sensor_msgs/msg/laser_scan.hpp"
 
 #include "std_msgs/msg/empty.hpp"
 
@@ -35,6 +27,7 @@
 
 #include <stdio.h>
 #include <cmath>
+#include <ctime>
 
 /* the first two here are checking for straighforward illigal
  * floating values. The last guy takes advantage of a property
@@ -89,6 +82,9 @@ geometry_msgs::msg::Pose pose_2d_to_ros2_pose(const pose_2d & p) {
    return ret;
 }
 
+struct timespec tnow(void);
+double timedist(struct timespec &t0, struct timespec &t1);
+
 /* this is the actual ros node. The class is the node. */
 class Vega : public rclcpp::Node {
 public:
@@ -96,7 +92,7 @@ public:
    Vega() : Node("vega") {
 
       /* topic to publish the produced map on */
-      this->declare_parameter("map_in","map");
+      this->declare_parameter("map_in","/map");
 
       /* topic to listen for source-of-truth odometry on */
       this->declare_parameter("pos_in","/demo/odom");
@@ -107,12 +103,33 @@ public:
       this->declare_parameter("reset_in","/vega/reset");
 
       /* the topic to publish the path on */
-      this->declare_parameter("path_out","path");
+      this->declare_parameter("path_out","/path");
       /* interval in seconds to publish the map in */
       this->declare_parameter("path_publish_interval",0.1);
 
+      /* the topic to publish the visualization on */
+      this->declare_parameter("visual_out","/path_visual");
+      /* the topic to publish the map we are using on */
+      this->declare_parameter("map_out","/vega/map");
+      /* whether to publish the visualization message */
+      this->declare_parameter("publish_visual",true);
+
       /* parameters for the map */
-      this->declare_parameter("map_obstacle_threshold",1.0); 
+      this->declare_parameter("map_obstacle_threshold",0.3); 
+      /* parameters for the map */
+      this->declare_parameter("map_resolution",0.1); /* meters */
+      this->declare_parameter("map_hit_weight",80); 
+      this->declare_parameter("map_miss_weight",10);
+      this->declare_parameter("map_start_weight",50);
+
+      this->map = GridMap(
+         this->get_parameter("map_resolution").as_double(),
+         this->get_parameter("map_hit_weight").as_int(),
+         this->get_parameter("map_miss_weight").as_int(),
+         this->get_parameter("map_start_weight").as_int(),
+         10.0,10.0, // 10 meters by 10 meters seems conservative :/
+         this->get_parameter("map_obstacle_threshold").as_double()
+      );
 
       this->declare_parameter("repath_range",1.0);
       this->declare_parameter("full_repath_interval",3.0);
@@ -122,11 +139,11 @@ public:
             this->get_parameter("pos_in").as_string(), 10,
             std::bind(&Vega::collect_pos, this, _1));
 
-      goal_in = this->create_subscription<nav_msgs::msg::PoseStamped>(
+      goal_in = this->create_subscription<geometry_msgs::msg::PoseStamped>(
             this->get_parameter("goal_in").as_string(), 10,
             std::bind(&Vega::collect_goal, this, _1));
 
-      map_in = this->create_subscription<sensor_msgs::msg::OccupancyGrid>(
+      map_in = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
             this->get_parameter("map_in").as_string(), 10,
             std::bind(&Vega::collect_map, this, _1));
 
@@ -137,14 +154,20 @@ public:
       /* setup the topic we will publish the computed map on */
       path_out = this->create_publisher<nav_msgs::msg::Path>(
             this->get_parameter("path_out").as_string(), 10);
+      visual_out = this->create_publisher<visualization_msgs::msg::Marker>(
+            this->get_parameter("visual_out").as_string(), 10);
+      map_out = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
+            this->get_parameter("map_out").as_string(), 10);
       path_callback = this->create_wall_timer(
             std::chrono::milliseconds((long)(1000.0 *
                   this->get_parameter("path_publish_interval").as_double())),
             std::bind(&Vega::publish_path, this));
 
-      last_repath = 0;
-      repath_interval = std::ceil(this->get_parameter("full_repath_interval").as_double() * CLOCKS_PER_SECOND);
+      have_goal = 0;
+      repath_interval = this->get_parameter("full_repath_interval").as_double();
       repath_dist = this->get_parameter("repath_range").as_double();
+
+      path_timeout = this->get_parameter("path_publish_interval").as_double();
    }
 
 private:
@@ -152,11 +175,12 @@ private:
    /* === node variables === */
 
    /* the current seen position of the robot */
-   std::string ref_frame;
+   std::string ref_frame = "map";
    pose_2d last_pos;
 
    /* the goal we are trying to get to */
    point_2d goal;
+   int have_goal;
 
    /* the map we are working off of */
    GridMap map;
@@ -165,11 +189,13 @@ private:
    AStar path;
 
    /* keeping track of when to repath */
-   clock_t last_repath;
-   clock_t repath_interval;
+   struct timespec last_repath;
+   double repath_interval;
 
    /* saving the repath distance */
    double repath_dist;
+   /* saving the publish interval */
+   double path_timeout;
 
    /* the topic we are publishing the map on and the timer that
     * triggers it to publish at the given interval.            */
@@ -181,8 +207,14 @@ private:
    /* the topic we recieve our reset commands on. */
    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_in;
 
+   /* the topic to recieve the goal position on. */
+   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_in;
+
    /* the topic the path is published on */
    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_out;
+   /* the topic the visualization is published on */
+   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr visual_out;
+   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_out;
    /* path publish timer */
    rclcpp::TimerBase::SharedPtr path_callback;
 
@@ -196,7 +228,8 @@ private:
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/PoseStamped.msg
-   void collect_goal(consst geometry_msgs::msg::PoseStamped & p) {
+   void collect_goal(const geometry_msgs::msg::PoseStamped & p) {
+      have_goal = 1;
       goal = point_2d{p.pose.position.x,p.pose.position.y};
       path.clear();
    }
@@ -205,6 +238,13 @@ private:
    void collect_map(const nav_msgs::msg::OccupancyGrid & msg) {
       if (map.from_msg(msg))
          path.clear();
+      if (this->get_parameter("publish_visual").as_bool()) {
+         nav_msgs::msg::OccupancyGrid msg;
+         map.to_msg(msg);
+         msg.header.frame_id = ref_frame;
+         msg.header.stamp = this->get_clock()->now();
+         map_out->publish(msg);
+      }
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/std_msgs/msg/Empty.msg
@@ -216,17 +256,19 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Path.msg
    void publish_path() {
+      if ( ! have_goal) return;
       nav_msgs::msg::Path msg;
 
       /* you will note that we are treating the goal as the start.
        * This produces better results for repathing.              */
 
-      if (clock() - last_repath > repath_interval) {
-         last_repath = clock();
-         path.route(goal.x,goal.y,last_pos.x,last_pos.y,&map);
+      struct timespec curr_time = tnow();
+      if (timedist(last_repath,curr_time) > repath_interval || ! path.has_path()) {
+         last_repath = tnow();
+         path.route(goal.x,goal.y,last_pos.x,last_pos.y,path_timeout,&map);
       }
       else {
-         path.reroute(repath_dist,last_pos.x,last_pos.y,&map);
+         path.reroute(repath_dist,last_pos.x,last_pos.y,path_timeout,&map);
       }
 
       path.to_msg(msg,&map);
@@ -234,6 +276,18 @@ private:
       msg.header.stamp = this->get_clock()->now();
 
       path_out->publish(msg);
+
+      /* a bit lazy to call this every time, but there is a way
+       * to set up an interface to change this live, so I will
+       * say I am preparing for that :)                        */
+      if (this->get_parameter("publish_visual").as_bool()) {
+         visualization_msgs::msg::Marker marker;
+         path.to_vis(marker,&map);
+         marker.header.frame_id = ref_frame;
+         marker.header.stamp = this->get_clock()->now();
+
+         visual_out->publish(marker);
+      }
    }
 
 };
