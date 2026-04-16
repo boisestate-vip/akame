@@ -215,7 +215,7 @@ public:
    SimpleMap() : Node("simple_map") {
 
       /* topic to publish the produced map on */
-      this->declare_parameter("map_out","map");
+      this->declare_parameter("map_out","/map");
       /* interval in seconds to publish the map in */
       this->declare_parameter("map_publish_interval",0.25);
       /* whether to publish the map frame of reference */
