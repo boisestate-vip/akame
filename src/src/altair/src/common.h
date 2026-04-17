@@ -13,4 +13,12 @@ typedef struct point_val {
    double val;
 } point_val;
 
+typedef struct node {
+   struct node * prev;
+   struct node * next;
+   point pos;
+   double d;
+   double n;
+} node;
+
 #endif

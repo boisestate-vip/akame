@@ -28,8 +28,7 @@
 
 #include "std_msgs/msg/empty.hpp"
 
-#include "map.hpp"
-#include "points.hpp"
+#include "band.hpp"
 #include "stdio.h"
 
 #include <cmath>
@@ -105,14 +104,24 @@ public:
       this->declare_parameter("path_out","/path_smooth");
 
       /* interval in seconds to publish the path in */
-      this->declare_paramter("path_publish_interval",0.1);
+      this->declare_parameter("path_publish_interval",0.1);
+
+      /* map specific parameters */
+      this->declare_parameter("internal_multiplier",1.0);
+      this->declare_parameter("external_multiplier",1.0);
+      this->declare_parameter("constraint_multiplier",1.0);
+      this->declare_parameter("distance_cutoff",1.0);
+      this->declare_parameter("map_height",40);
+      this->declare_parameter("bin_width",0.3);
+      this->declare_parameter("max_length",3.0);
+      this->declare_parameter("hit_distance",0.2);
 
       /* now instantiate our subscriptions to our information sources */
       pos_in = this->create_subscription<nav_msgs::msg::Odometry>(
             this->get_parameter("pos_in").as_string(), 10,
             std::bind(&Altair::collect_pos, this, _1));
 
-      goal_in = this->create_subscription<nav_msgs::msg::Odometry>(
+      goal_in = this->create_subscription<geometry_msgs::msg::PoseStamped>(
             this->get_parameter("goal_in").as_string(), 10,
             std::bind(&Altair::collect_goal, this, _1));
 
@@ -135,6 +144,16 @@ public:
          std::chrono::milliseconds(((long)(1000.0 * 
                   this->get_parameter("path_publish_interval").as_double()))),
          std::bind(&Altair::publish_path, this));
+
+      band = Band(
+         this->get_parameter("internal_multiplier").as_double(),
+         this->get_parameter("external_multiplier").as_double(),
+         this->get_parameter("constraint_multiplier").as_double(),
+         this->get_parameter("distance_cutoff").as_double(),
+         (uint8_t)this->get_parameter("map_height").as_int(),
+         this->get_parameter("bin_width").as_double(),
+         this->get_parameter("max_length").as_double(),
+         this->get_parameter("hit_distance").as_double()
       );
    }
 
@@ -142,17 +161,17 @@ private:
 
    /* === node variables === */
 
-   /* the map we are building and publishing */
-   GridMap map;
-
    /* the current seen position of the robot */
    pose_2d pos;
 
    /* the current goal */
    pose_2d goal;
 
+   /* holds the elastic band */
+   Band band;
+
    /* the topic we recieve the map on */
-   rclcpp::Subscriber<nav_msgs::msg::OccupancyGrid>::SharedPtr map_in;
+   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_in;
 
    /* the topic we recieve odometry messages on */
    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pos_in;
@@ -174,39 +193,54 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Odometry.msg
    void collect_pos(const nav_msgs::msg::Odometry & msg) {
-      last_pos = ros2_pose_to_pose_2d(msg.pose.pose);
+      pos = ros2_pose_to_pose_2d(msg.pose.pose);
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/PoseStamped.msg
    void collect_goal(const geometry_msgs::msg::PoseStamped & msg) {
       goal = ros2_pose_to_pose_2d(msg.pose);
+      band.clear();
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Path.msg
    void collect_path(const nav_msgs::msg::Path & msg) {
+      if ( ! band.has_path())
+         band.load_path(msg);
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/std_msgs/msg/Empty.msg
    void collect_reset(const std_msgs::msg::Empty & msg) {
       (void)msg;
-      map.clear();
+      band.clear();
+   }
+
+   void collect_map(const nav_msgs::msg::OccupancyGrid & msg) {
+      band.load_map(msg);
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Path.msg
    void publish_path() {
+
+      if ( ! band.has_path())
+         return;
+
+      band.step(pos.x,pos.y,10);
+
       nav_msgs::msg::Path msg;
+
 
       msg.header.stamp = this->get_clock()->now();
       msg.header.frame_id = "map";
+      band.to_msg(msg);
 
-      map_out->publish(msg);
+      path_out->publish(msg);
    }
 
 };
 
 int main(int argc, char ** argv) {
    rclcpp::init(argc,argv);
-   rclcpp::spin(std::make_shared<SimpleMap>());
+   rclcpp::spin(std::make_shared<Altair>());
    rclcpp::shutdown();
    return 0;
 }

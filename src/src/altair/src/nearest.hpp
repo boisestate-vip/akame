@@ -3,17 +3,21 @@
 
 #define __AKAME_NEAREST
 
-#include "geometry_msgs/msg/occupancy_grid.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
 #include "common.h"
 #include <float.h>
 #include <stdint.h>
 
 #include <vector>
+#include <cmath>
 
 /* start asap, more complex later... */
 
 class Nearest {
 public:
+
+   Nearest() {
+   }
 
    Nearest(uint8_t map_height, double bin_width) {
       this->map_height = map_height;
@@ -23,14 +27,14 @@ public:
    ~Nearest() {
    }
 
-   void load(const geometry_msgs::msg::OccupancyGrid & map) {
+   void load(const nav_msgs::msg::OccupancyGrid & map) {
       clear();
 
       double step = map.info.resolution;
       uint32_t xmax = map.info.width;
       uint32_t ymax = map.info.height;
 
-      uint8_t * idx = map.data.data;
+      uint8_t * idx = (uint8_t *)map.data.data();
 
       double x = map.info.origin.position.x;
       double y = map.info.origin.position.y;
@@ -38,7 +42,7 @@ public:
          for (uint32_t ystp = 0; ystp < ymax; ++ystp) {
 
             if (*idx > map_height)
-               values.append((point){.x=x,.y=y});
+               values.push_back(point{x,y});
 
             idx += 1;
 
@@ -52,7 +56,7 @@ public:
       point best = p;
       double best_dist2 = DBL_MAX, curr_dist2;
 
-      point * val = values.data, * end = values.data + values.size();
+      point * val = (point *)values.data(), * end = (point *)values.data() + values.size();
       while (val < end) {
          if ((curr_dist2 = dist2(p,*val)) < best_dist2) {
             best_dist2 = curr_dist2;
@@ -60,7 +64,7 @@ public:
          }
       }
 
-      return (point_val){.p=best, .val=best_dist2};
+      return point_val{best,std::sqrt(best_dist2)};
    }
 
    void clear() {
@@ -74,7 +78,7 @@ private:
 
    std::vector<point> values;
 
-   inline const double dist2(const point & a, const point & b) const {
+   inline double dist2(const point & a, const point & b) const {
       return (a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y);
    }
 
