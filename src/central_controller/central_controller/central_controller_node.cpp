@@ -1,5 +1,4 @@
 #include <memory>
-#include <chrono>
 #include <random>
 
 #include "rclcpp/rclcpp.hpp"
@@ -7,7 +6,6 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "std_msgs/msg/float64.hpp"
 
-using namespace std::chrono_literals;
 using nav_msgs::msg::OccupancyGrid;
 using geometry_msgs::msg::PoseStamped;
 using std_msgs::msg::Float64;
@@ -25,19 +23,15 @@ class CentralController : public rclcpp::Node {
 public:
   CentralController()
   : Node("central_controller"),
-    map_(nullptr),
-    pose_(nullptr),
     dig_zone_known_(false),
     dump_zone_known_(false),
     state_(RobotState::SEARCH_FOR_DIG_ZONE)
   {
     map_sub_ = this->create_subscription<OccupancyGrid>(
-      "map", 10,
-      std::bind(&CentralController::map_callback, this, std::placeholders::_1));
+      "map", 10, std::bind(&CentralController::map_callback, this, std::placeholders::_1));
 
     pose_sub_ = this->create_subscription<PoseStamped>(
-      "pose_in", 10,
-      std::bind(&CentralController::pose_callback, this, std::placeholders::_1));
+      "pose_in", 10, std::bind(&CentralController::pose_callback, this, std::placeholders::_1));
 
     goal_pub_ = this->create_publisher<PoseStamped>("goal_pose", 10);
     arm_pub_ = this->create_publisher<Float64>("regolith_arm_angle", 10);
@@ -45,28 +39,22 @@ public:
   }
 
 private:
-  // subscribers & publishers
   rclcpp::Subscription<OccupancyGrid>::SharedPtr map_sub_;
   rclcpp::Subscription<PoseStamped>::SharedPtr pose_sub_;
   rclcpp::Publisher<PoseStamped>::SharedPtr goal_pub_;
   rclcpp::Publisher<Float64>::SharedPtr arm_pub_;
   rclcpp::Publisher<Float64>::SharedPtr drum_pub_;
 
-  // internal state
-  std::shared_ptr<OccupancyGrid> map_;
-  std::shared_ptr<PoseStamped> pose_;
+  OccupancyGrid::SharedPtr map_;
+  PoseStamped::SharedPtr pose_;
   bool dig_zone_known_;
   bool dump_zone_known_;
   std::pair<double,double> dig_zone_;
   std::pair<double,double> dump_zone_;
   RobotState state_;
 
-  // ===========================
-  // callbacks
-  // ===========================
   void map_callback(const OccupancyGrid::SharedPtr msg) {
     map_ = msg;
-    // placeholder: detect dig/dump zones from map if needed
   }
 
   void pose_callback(const PoseStamped::SharedPtr msg) {
@@ -74,9 +62,6 @@ private:
     update_state_machine();
   }
 
-  // ===========================
-  // state machine
-  // ===========================
   void update_state_machine() {
     if (!pose_) return;
 
@@ -85,10 +70,8 @@ private:
 
     if (state_ == RobotState::SEARCH_FOR_DIG_ZONE) {
       RCLCPP_INFO(this->get_logger(), "→ NAV_TO_DIG");
-      // If no dig zone is known, choose a random goal (simple exploration).
       if (!dig_zone_known_) {
-        auto [gx, gy] = random_search_goal();
-        dig_zone_ = {gx, gy};
+        dig_zone_ = random_search_goal();
         dig_zone_known_ = true;
       }
       state_ = RobotState::NAV_TO_DIG;
@@ -118,8 +101,7 @@ private:
     if (state_ == RobotState::SEARCH_FOR_DUMP_ZONE) {
       RCLCPP_INFO(this->get_logger(), "→ NAV_TO_DUMP");
       if (!dump_zone_known_) {
-        auto [gx, gy] = random_search_goal();
-        dump_zone_ = {gx, gy};
+        dump_zone_ = random_search_goal();
         dump_zone_known_ = true;
       }
       state_ = RobotState::NAV_TO_DUMP;
@@ -147,9 +129,6 @@ private:
     }
   }
 
-  // ===========================
-  // helpers
-  // ===========================
   bool is_near(double x, double y, double gx, double gy, double tol = 0.3) {
     return std::abs(x - gx) < tol && std::abs(y - gy) < tol;
   }
@@ -166,12 +145,10 @@ private:
   void publish_arm_commands() {
     Float64 arm;
     Float64 drum;
-    // lower arm
     arm.data = -0.5;
     drum.data = (state_ == RobotState::DIG) ? 3.0 : -3.0;
     arm_pub_->publish(arm);
     drum_pub_->publish(drum);
-    // raise arm
     arm.data = 1.0;
     arm_pub_->publish(arm);
   }
@@ -185,8 +162,7 @@ private:
 
 int main(int argc, char ** argv) {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<CentralController>();
-  rclcpp::spin(node);
+  rclcpp::spin(std::make_shared<CentralController>());
   rclcpp::shutdown();
   return 0;
 }
