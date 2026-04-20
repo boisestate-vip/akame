@@ -11,7 +11,8 @@ be done by catting the values and seeing which one
 prints when you move the controller.
 
 next ensure that the setup in the src/src/f710/README.md
-has been completed.
+has been completed. This can be done via the setup
+script located in that directory.
 
 next run the f710 node:
 ```
