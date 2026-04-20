@@ -44,7 +44,7 @@ public:
       /* LaserScan output topic */
       scan_out = this->create_publisher<sensor_msgs::msg::LaserScan>("/scan_out", 10);
 
-      cloud_in = this->create_subscription<sensor_msgs::msg::PointCloud2>("/cloud_in",10,std::bind(&PcToLs::process_cloud, this, _1));
+      cloud_in = this->create_subscription<sensor_msgs::msg::PointCloud2>("/points",10,std::bind(&PcToLs::process_cloud, this, _1));
       /* Optional: LaserScan -> PointCloud path */
       scan_in = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan_in",10,std::bind(&PcToLs::process_scan, this, _1));
 
@@ -176,12 +176,13 @@ private:
    }
 
    void process_cloud(const sensor_msgs::msg::PointCloud2 & msg) {
+      static const uint64_t zero = 0;
    
       sensor_msgs::msg::PointCloud2 msg_transformed;
       sensor_msgs::msg::PointCloud2 msg_2d;
 
       std::string frame_id = msg.header.frame_id;
-      std::string new_frame_id = "map";
+      std::string new_frame_id = "base_link";
 
       msg_2d.header = msg.header;
       msg_2d.header.frame_id = new_frame_id;
@@ -200,6 +201,16 @@ private:
             return;
       }
 
+      printf("got transform as: (%f,%f,%f) , (%f,%f,%f,%f)\n",
+         to_map.transform.translation.x,
+         to_map.transform.translation.y,
+         to_map.transform.translation.z,
+         to_map.transform.rotation.x,
+         to_map.transform.rotation.y,
+         to_map.transform.rotation.z,
+         to_map.transform.rotation.w
+      );
+
       /* transform the point cloud into the global reference frame */
       tf2::doTransform<sensor_msgs::msg::PointCloud2>(msg,msg_transformed,to_map);
 
@@ -207,6 +218,8 @@ private:
       std::vector<point3> points;
       std::vector<point2> points_out;
       collect_points(points,msg_transformed);
+
+      printf("collected points: %d\n",points.size());
 
       /* TODO(*): make this a parameter */
       // double cull_range = 0.1;
@@ -216,8 +229,13 @@ private:
       for (point3 & point : points) {
 
          // 1) Keep only points inside the slice
-         if (point.z < min_height || point.z > max_height)
+         if (point.z > min_height && point.z < max_height) {
+            /*
+            printf("culling point {%f,%f,%f}: is outside range %f - %f\n",
+                  point.x,point.y,point.z,min_height,max_height);
+                  */
             continue;
+         }
 
          // 2) Optionally drop a thin band around z = 0
          if (cull_range > 0.0 && std::fabs(point.z) < cull_range)
@@ -235,6 +253,8 @@ private:
       msg_2d.width = points_out.size();
       msg_2d.height = 1;
 
+      printf("collected point count: %d\n",points_out.size());
+
       sensor_msgs::msg::PointField x_field;
       sensor_msgs::msg::PointField y_field;
 
@@ -248,11 +268,16 @@ private:
       y_field.datatype = 8; /* FLOAT64 */
       y_field.count = 1;
 
+      y_field.name = "z";
+      y_field.offset = 16;
+      y_field.datatype = 8; /* FLOAT64 */
+      y_field.count = 1;
+
       msg_2d.fields.push_back(x_field);
       msg_2d.fields.push_back(y_field);
 
       msg_2d.is_bigendian = false;
-      msg_2d.point_step = 16; /* two 8-byte floats */
+      msg_2d.point_step = 24; /* two 8-byte floats */
       msg_2d.row_step = msg_2d.width * msg_2d.point_step;
       msg_2d.is_dense = true;
 
@@ -262,8 +287,10 @@ private:
       for (point2 & point : points_out) {
 
          /* 8 is the size of our double type */
+         printf("adding point: %f %f\n",point.x,point.y);
          memcpy(&data[offset+0],&point.x,8);
          memcpy(&data[offset+8],&point.y,8);
+         memcpy(&data[offset+16],&zero,8);
 
          offset += msg_2d.point_step;
       }
@@ -271,7 +298,8 @@ private:
       for (size_t i = 0; i < data_size; ++i)
          msg_2d.data.push_back(data[i]);
 
-      cloud_out->publish(msg_2d);
+      //cloud_out->publish(msg_2d);
+      cloud_out->publish(msg_transformed);
 
       /* Build LaserScan message from 2D points (PointCloud -> LaserScan) */
 
@@ -352,7 +380,7 @@ private:
 
          double r = msg.ranges[i];
 
-         if (r < msg.range_min || r > msg.range_max)
+         if (r > msg.range_min && r < msg.range_max)
             continue;
 
          /* LaserScan to points, serves as our "doTransform" */
@@ -360,7 +388,7 @@ private:
          double x = r * std::cos(angle);
          double y = r * std::sin(angle);
 
-         points_scan.push_back((point3){.x=x,.y=y,.z=0.0});
+         points_scan.push_back((point3){x,y,0.0});
       }
 
       if (points_scan.empty()) {
@@ -397,9 +425,9 @@ private:
          tf2::Vector3 p_t = tf * p;
 
          points_out.push_back((point3){
-            .x = p_t.x(),
-            .y = p_t.y(),
-            .z = p_t.z()
+            p_t.x(),
+            p_t.y(),
+            p_t.z(),
          });
       }
 
