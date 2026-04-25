@@ -28,6 +28,8 @@
 
 #include "std_msgs/msg/empty.hpp"
 
+#include "visualization_msgs/msg/marker_array.hpp"
+
 #include "band.hpp"
 #include "stdio.h"
 
@@ -93,7 +95,7 @@ public:
       /* topic to listen for source-of-truth odometry on */
       this->declare_parameter("pos_in","/demo/odom");
       /* topic to recieve the goal on */
-      this->declare_parameter("goal_in","/goal");
+      this->declare_parameter("goal_in","/goal_pose");
       /* topic to accept the path to smooth */
       this->declare_parameter("path_in","/path");
 
@@ -102,14 +104,17 @@ public:
 
       /* topic to publish the smoothed path on */
       this->declare_parameter("path_out","/path_smooth");
+      /* visualization stuff */
+      this->declare_parameter("publish_visual",true);
+      this->declare_parameter("visual_out","/path_smooth_visual");
 
       /* interval in seconds to publish the path in */
       this->declare_parameter("path_publish_interval",0.1);
 
       /* map specific parameters */
-      this->declare_parameter("internal_multiplier",1.0);
-      this->declare_parameter("external_multiplier",1.0);
-      this->declare_parameter("constraint_multiplier",1.0);
+      this->declare_parameter("internal_multiplier",0.1);
+      this->declare_parameter("external_multiplier",0.1);
+      this->declare_parameter("constraint_multiplier",0.1);
       this->declare_parameter("distance_cutoff",1.0);
       this->declare_parameter("map_height",40);
       this->declare_parameter("bin_width",0.3);
@@ -145,6 +150,9 @@ public:
                   this->get_parameter("path_publish_interval").as_double()))),
          std::bind(&Altair::publish_path, this));
 
+      visual_out = this->create_publisher<visualization_msgs::msg::Marker>(
+            this->get_parameter("visual_out").as_string(), 10);
+
       band = Band(
          this->get_parameter("internal_multiplier").as_double(),
          this->get_parameter("external_multiplier").as_double(),
@@ -155,6 +163,8 @@ public:
          this->get_parameter("max_length").as_double(),
          this->get_parameter("hit_distance").as_double()
       );
+
+      has_goal = false;
    }
 
 private:
@@ -166,6 +176,7 @@ private:
 
    /* the current goal */
    pose_2d goal;
+   bool has_goal;
 
    /* holds the elastic band */
    Band band;
@@ -187,6 +198,7 @@ private:
 
    /* the topic to publish the smoothed path from */
    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_out;
+   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr visual_out;
    rclcpp::TimerBase::SharedPtr path_callback;
 
    /* === node callback handlers === */
@@ -198,12 +210,22 @@ private:
 
    // https://github.com/ros2/common_interfaces/blob/rolling/geometry_msgs/msg/PoseStamped.msg
    void collect_goal(const geometry_msgs::msg::PoseStamped & msg) {
+      has_goal = true;
       goal = ros2_pose_to_pose_2d(msg.pose);
       band.clear();
    }
 
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Path.msg
    void collect_path(const nav_msgs::msg::Path & msg) {
+
+      auto last = msg.poses.back().pose.position;
+
+      if (! has_goal)
+         return;
+
+      if (std::fabs(last.x - goal.x) > 0.1 || std::fabs(last.y - goal.y) > 0.1)
+         return;
+
       if ( ! band.has_path())
          band.load_path(msg);
    }
@@ -228,12 +250,24 @@ private:
 
       nav_msgs::msg::Path msg;
 
-
+      band.to_msg(msg);
       msg.header.stamp = this->get_clock()->now();
       msg.header.frame_id = "map";
-      band.to_msg(msg);
 
       path_out->publish(msg);
+
+      if (this->get_parameter("publish_visual").as_bool()) {
+         visualization_msgs::msg::MarkerArray markers;
+         band.to_vis(markers);
+
+         for (auto & m : markers.markers) {
+
+            m.header.frame_id = "map";
+            m.header.stamp = this->get_clock()->now();
+
+            visual_out->publish(m);
+         }
+      }
    }
 
 };

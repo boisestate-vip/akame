@@ -62,6 +62,8 @@ public:
             best_dist2 = curr_dist2;
             best = *val;
          }
+
+         val += 1;
       }
 
       return point_val{best,std::sqrt(best_dist2)};
