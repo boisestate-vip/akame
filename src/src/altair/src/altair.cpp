@@ -112,9 +112,9 @@ public:
       this->declare_parameter("path_publish_interval",0.1);
 
       /* map specific parameters */
-      this->declare_parameter("internal_multiplier",0.1);
-      this->declare_parameter("external_multiplier",0.1);
-      this->declare_parameter("constraint_multiplier",0.1);
+      this->declare_parameter("internal_multiplier",0.01);
+      this->declare_parameter("external_multiplier",0.01);
+      this->declare_parameter("constraint_multiplier",1.00);
       this->declare_parameter("distance_cutoff",1.0);
       this->declare_parameter("map_height",40);
       this->declare_parameter("bin_width",0.3);

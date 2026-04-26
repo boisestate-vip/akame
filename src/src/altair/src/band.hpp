@@ -187,6 +187,7 @@ do {                         \
 
             q->pos.x += f.x;
             q->pos.y += f.y;
+            q->d = (nearest.val > extent ? extent : nearest.val);
 
             double nextto = dist(q0->pos.x,q0->pos.y,q->pos.x,q->pos.y);
             q0->n = nextto;
@@ -199,6 +200,7 @@ do {                         \
          }
          q->d = bubble(q->pos);
 
+         /*
          q0 = path; q = q0->next; q1 = q->next;
 
          printf("culling/birthing\n");
@@ -239,6 +241,7 @@ do {                         \
             if (travel > extent)
                break;
          }
+         */
       } while (--count);
    }
 #undef ADVANCE
@@ -301,6 +304,19 @@ private:
       if (pv.val > d0)
          return d0;
       return pv.val;
+   }
+
+   inline bool is_collision(point q) {
+      point_val pv = obs.get(q);
+      if (pv.val < collide)
+         return true;
+      return false;
+   }
+
+   inline bool is_collision(double d) {
+      if (d < collide)
+         return true;
+      return false;
    }
 
    /* distance cutoff for repulsive force */
