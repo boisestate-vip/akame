@@ -45,10 +45,9 @@ public:
             this->get_parameter("cmd_in").as_string(), 10,
             std::bind(&RoboclawDriver::collect_speed, this, _1));
 
-      const char * port = this->get_parameter("roboclaw_port").as_string().c_str();
       uint32_t baud = this->get_parameter("baud").as_int();
-      printf("connecting to roboclaw on %s with baud %u\n",port,baud);
-      obj = new RoboClaw(port,baud,10000);
+      printf("connecting to roboclaw on %s with baud %u\n",this->get_parameter("roboclaw_port").as_string().c_str(),baud);
+      obj = new RoboClaw(this->get_parameter("roboclaw_port").as_string().c_str(),baud,10000);
       address = this->get_parameter("address").as_int();
       printf("got address as %d\n",address);
 
