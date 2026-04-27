@@ -14,8 +14,9 @@
 #include <sys/select.h>
 
 #define ROBOCLAW_MAXRETRY 2
-#define SetDWORDval(arg) (uint8_t)(((uint32_t)arg)>>24),(uint8_t)(((uint32_t)arg)>>16),(uint8_t)(((uint32_t)arg)>>8),(uint8_t)arg 
+#define SetDWORDval(arg) (uint8_t)(((uint32_t)arg)>>24),(uint8_t)(((uint32_t)arg)>>16),(uint8_t)(((uint32_t)arg)>>8),(uint8_t)arg
 #define SetWORDval(arg) (uint8_t)(((uint16_t)arg)>>8),(uint8_t)arg
+
 /* best effort, https://www.man7.org/linux/man-pages/man3/termios.3.html */
 static speed_t get_baud_const(int baud) {
    static speed_t vals[] = {
@@ -102,7 +103,7 @@ static speed_t get_baud_const(int baud) {
 /* try and connect and set the given baud rate for the waveshare */
 static int try_connect(const char * device, int baud) {
 
-   int fd = open(device,O_RDWR|O_NONBLOCK|O_SYNC);
+   int fd = open(device,O_WRONLY|O_NONBLOCK);
    if (fd < 0) {
       perror("open");
       return -1;
@@ -115,27 +116,14 @@ static int try_connect(const char * device, int baud) {
       return -1;
    }
 
-   cfmakeraw(&t);
-
    int res1 = cfsetispeed(&t,get_baud_const(baud));
    if (res1 < 0) {
       perror("cfsetispeed");
       return -1;
    }
 
-   int res2 = cfsetospeed(&t,get_baud_const(baud));
+   int res2 = tcsetattr(fd,TCSANOW,&t);
    if (res2 < 0) {
-      perror("cfsetospeed");
-      return -1;
-   }
-
-   t.c_cflag &= ~PARENB;
-   t.c_cflag &= ~CSIZE;
-   t.c_cflag &= ~CSTOPB;
-   t.c_cflag |= CS8;
-
-   int res3 = tcsetattr(fd,TCSANOW,&t);
-   if (res3 < 0) {
       perror("tcsetattr");
       return -1;
    }
@@ -267,38 +255,6 @@ enum {
    READNVM = 95,	//Reloads values from Flash into Ram
    SETCONFIG = 98,
    GETCONFIG = 99,
-   GETVOLTS = 100,
-   GETTEMPS = 101,
-   SETAUXDUTYS = 102,
-   GETENCSTATUS = 103,
-   GETAUXDUTYS = 104,
-   SETAUTO1 = 105,
-   SETAUTO2 = 106,
-   GETAUTOS = 107,
-   GETSPEEDS = 108,
-   SETSPEEDERRORLIMIT = 109,
-   GETSPEEDERRORLIMIT = 110,
-   GETSPEEDERRORS = 111,
-   SETPOSERRORLIMIT = 112,
-   GETPOSERRORLIMIT = 113,
-   GETPOSERRORS = 114,
-   SETOFFSETS = 115,	//MCP only
-   GETOFFSETS = 116,	//MCP only
-
-   M1POS = 119,
-   M2POS = 120,
-   MIXEDPOS = 121,
-   M1SPEEDPOS = 122,
-   M2SPEEDPOS = 123,
-   MIXEDSPEEDPOS = 124,
-   M1PPOS = 125,
-   M2PPOS = 126,
-   MIXEDPPOS = 127,
-
-   SETM1LR = 128, //MCP only
-   SETM2LR = 129, //MCP only
-   GETM1LR = 130, //MCP only
-   GETM2LR = 131, //MCP only
    SETM1MAXCURRENT = 133,
    SETM2MAXCURRENT = 134,
    GETM1MAXCURRENT = 135,
@@ -426,7 +382,7 @@ private:
             else{
                break;
             }
-
+            
             if(data!=-1){
                data = _read(timeout);
                crc_update(data);
@@ -480,7 +436,7 @@ private:
 
       if(valid)
          *valid = false;
-
+      
       uint8_t value=0;
       uint8_t trys=ROBOCLAW_MAXRETRY;
       int16_t data;
@@ -492,7 +448,7 @@ private:
          crc_update(address);
          _write(cmd);
          crc_update(cmd);
-
+      
          data = _read(timeout);
          crc_update(data);
          value=data;
@@ -514,7 +470,7 @@ private:
             }
          }
       }while(trys--);
-
+      
       return false;
    }
 
@@ -523,7 +479,7 @@ private:
 
       if(valid)
          *valid = false;
-
+      
       uint16_t value=0;
       uint8_t trys=ROBOCLAW_MAXRETRY;
       int16_t data;
@@ -535,17 +491,17 @@ private:
          crc_update(address);
          _write(cmd);
          crc_update(cmd);
-
+      
          data = _read(timeout);
          crc_update(data);
          value=(uint16_t)data<<8;
-
+         
          if(data!=-1){
             data = _read(timeout);
             crc_update(data);
             value|=(uint16_t)data;
          }
-
+         
          if(data!=-1){
             uint16_t ccrc;
             data = _read(timeout);
@@ -563,16 +519,16 @@ private:
             }
          }
       }while(trys--);
-
+         
       return false;
    }
 
    uint32_t Read4(uint8_t address, uint8_t cmd, bool *valid){
       uint8_t crc;
-
+      
       if(valid)
          *valid = false;
-
+      
       uint32_t value=0;
       uint8_t trys=ROBOCLAW_MAXRETRY;
       int16_t data;
@@ -594,7 +550,7 @@ private:
             crc_update(data);
             value|=(uint32_t)data<<16;
          }
-
+         
          if(data!=-1){
             data = _read(timeout);
             crc_update(data);
@@ -606,7 +562,7 @@ private:
             crc_update(data);
             value|=(uint32_t)data;
          }
-
+         
          if(data!=-1){
             uint16_t ccrc;
             data = _read(timeout);
@@ -624,82 +580,82 @@ private:
             }
          }
       }while(trys--);
-
+      
       return false;
    }
 
-   uint32_t Read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *valid){
-      uint8_t crc;
+uint32_t Read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *valid){
+	uint8_t crc;
 
-      if(valid)
-         *valid = false;
+	if(valid)
+		*valid = false;
+	
+	uint32_t value=0;
+	uint8_t trys=ROBOCLAW_MAXRETRY;
+	int16_t data;
+	do{
+		flush();
 
-      uint32_t value=0;
-      uint8_t trys=ROBOCLAW_MAXRETRY;
-      int16_t data;
-      do{
-         flush();
+		crc_clear();
+		_write(address);
+		crc_update(address);
+		_write(cmd);
+		crc_update(cmd);
 
-         crc_clear();
-         _write(address);
-         crc_update(address);
-         _write(cmd);
-         crc_update(cmd);
+		data = _read(timeout);
+		crc_update(data);
+		value=(uint32_t)data<<24;
 
-         data = _read(timeout);
-         crc_update(data);
-         value=(uint32_t)data<<24;
+		if(data!=-1){
+			data = _read(timeout);
+			crc_update(data);
+			value|=(uint32_t)data<<16;
+		}
 
-         if(data!=-1){
-            data = _read(timeout);
-            crc_update(data);
-            value|=(uint32_t)data<<16;
-         }
+		if(data!=-1){
+			data = _read(timeout);
+			crc_update(data);
+			value|=(uint32_t)data<<8;
+		}
 
-         if(data!=-1){
-            data = _read(timeout);
-            crc_update(data);
-            value|=(uint32_t)data<<8;
-         }
+		if(data!=-1){
+			data = _read(timeout);
+			crc_update(data);
+			value|=(uint32_t)data;
+		}
+	
+		if(data!=-1){
+			data = _read(timeout);
+			crc_update(data);
+			if(status)
+				*status = data;
+		}
+				
+		if(data!=-1){
+			uint16_t ccrc;
+			data = _read(timeout);
+			if(data!=-1){
+				ccrc = data << 8;
+				data = _read(timeout);
+				if(data!=-1){
+					ccrc |= data;
+					if(crc_get()==ccrc){
+						if(valid)
+							*valid = true;
+						return value;
+					}
+				}
+			}
+		}
+	}while(trys--);
 
-         if(data!=-1){
-            data = _read(timeout);
-            crc_update(data);
-            value|=(uint32_t)data;
-         }
-
-         if(data!=-1){
-            data = _read(timeout);
-            crc_update(data);
-            if(status)
-               *status = data;
-         }
-
-         if(data!=-1){
-            uint16_t ccrc;
-            data = _read(timeout);
-            if(data!=-1){
-               ccrc = data << 8;
-               data = _read(timeout);
-               if(data!=-1){
-                  ccrc |= data;
-                  if(crc_get()==ccrc){
-                     if(valid)
-                        *valid = true;
-                     return value;
-                  }
-               }
-            }
-         }
-      }while(trys--);
-
-      return false;
-   }
+	return false;
+}
 
 
 public:
 
-   RoboClaw(const char * device, long baud, uint32_t tout) {
+   RoboClaw(char * device, long baud, uint32_t tout) {
       this->timeout = tout;
       this->fd = try_connect(device,baud);
       if (this->fd == -1) {
@@ -790,13 +746,13 @@ public:
          flush();
 
          data = 0;
-
+         
          crc_clear();
          _write(address);
          crc_update(address);
          _write(GETVERSION);
          crc_update(GETVERSION);
-
+      
          uint8_t i;
          for(i=0;i<48;i++){
             if(data!=-1){
@@ -822,7 +778,7 @@ public:
             }
          }
       }while(trys--);
-
+      
       return false;
    }
 
@@ -1016,7 +972,7 @@ public:
       }
       return valid;
    }
-
+            
    bool ReadMinMaxLogicVoltages(uint8_t address,uint16_t &min,uint16_t &max){
       bool valid;
       uint32_t value = Read4(address,GETMINMAXLOGICVOLTAGES,&valid);
@@ -1097,7 +1053,7 @@ public:
          crc_update(address);
          _write(GETPINFUNCTIONS);
          crc_update(GETPINFUNCTIONS);
-
+      
          data = _read(timeout);
          crc_update(data);
          val1=data;
@@ -1107,13 +1063,13 @@ public:
             crc_update(data);
             val2=data;
          }
-
+         
          if(data!=-1){
             data = _read(timeout);
             crc_update(data);
             val3=data;
          }
-
+         
          if(data!=-1){
             uint16_t ccrc;
             data = _read(timeout);
@@ -1132,7 +1088,7 @@ public:
             }
          }
       }while(trys--);
-
+      
       return false;
    }
 
@@ -1254,24 +1210,6 @@ public:
          mode = value;
       }
       return valid;
-   }
-
-/**
- * @brief Move Motor 1 to a percentage position
- *
- * Commands Motor 1 to move to a position specified as a percentage
- * of the configured position range.
- *
- * @param address Controller address
- * @param position Target position as a percentage (-32768 to +32767)
- * @param buffer Command buffer control:
- *        1 = Execute immediately
- *        0 = Add to buffer
- * @return true if successful, false otherwise
- */
-   bool M1PercentPosition(uint8_t address, int16_t position, uint8_t buffer)
-   {
-      return write_n(5, address, M1PPOS, SetWORDval(position), buffer); // Writes 1 uint16_t and 1 uint8_t
    }
 
 };
