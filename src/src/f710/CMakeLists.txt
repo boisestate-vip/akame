@@ -9,9 +9,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_executable(f710 src/main.cpp src/f710.cpp)
-ament_target_dependencies(f710 rclcpp geometry_msgs)
+ament_target_dependencies(f710 rclcpp geometry_msgs std_msgs)
 
 install(TARGETS f710
         DESTINATION lib/${PROJECT_NAME})
