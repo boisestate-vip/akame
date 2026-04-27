@@ -25,7 +25,7 @@
 //     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 // }
 
-RoboClaw controller = RoboClaw("/etc/ttyACM0", 34800, 10000);
+RoboClaw controller = RoboClaw("/dev/ttyACM0", 34800, 10000);
 
 // Define example target positions for Motor 1 as percentage (signed 16-bit)
 // -32768 is minimum configured position, +32767 is maximum configured position.
@@ -36,6 +36,7 @@ const uint8_t MOTOR_ADDRESS = 0x80;
 
 // Define buffer control flag (0 = Immediate Execution, 1 = Add to Buffer)
 uint8_t buffer_mode = 0; // Example: Execute command immediately
+uint8_t rc = 0;
 
 int main() {
    // Initialize debug serial port
@@ -43,6 +44,15 @@ int main() {
    //Serial.println("Basicmicro M1PPOS Example");
    //Serial.print("Connecting to controller on ");
    printf("Turning on roboclaw\n");
+   usleep(1000*1000);
+   
+   char versionBuf[128];
+   rc = controller.ReadVersion(MOTOR_ADDRESS, versionBuf);
+   if (rc == 1) {
+   printf("RoboClaw Version: %s\n", versionBuf);
+   } else {
+      printf("Could not get RoboClaw Version\n");
+   }
 
    // Note: For Percentage Position commands to work, Position PID must be enabled and tuned.
    // Encoders must be configured (e.g., Quadrature mode), AND the position MIN/MAX range
@@ -57,6 +67,8 @@ int main() {
 
    //  Serial.print(" (Buffer mode: "); Serial.print(buffer_mode); Serial.println(")");
    printf(" (Buffer mode: %d)\n", buffer_mode);
+
+   int success;
 
    while (1) {
       static unsigned long lastCommandTime = 0;
@@ -84,15 +96,38 @@ int main() {
                command_state = 0;
                break;
          }
-         
+
          //printf("Commanding Motor 1 to percentage position: ")
          printf("Commanding Motor 1 to percentage position: %d (out of -32768 to 32767)\n",current_target_percent_pos);
          //Serial.print(current_target_percent_pos); Serial.println(" (out of -32768 to 32767)");
 
+         // Variables to store the read PID parameters
+         float read_Kp, read_Ki, read_Kd;
+         uint32_t read_KiMax, read_DeadZone, read_Min, read_Max;
+
+         // Attempt to read the Position PID parameters for Motor 1
+         // The function returns true on success, false on failure.
+         // The parameters are stored in the provided variables.
+         success = controller.ReadM1PositionPID(MOTOR_ADDRESS, read_Kp, read_Ki, read_Kd, read_KiMax, read_DeadZone, read_Min, read_Max);
+
+         if (success) {
+            printf("READM1POSPID command successful.\n");
+            printf("Motor 1 Position PID Parameters:\n");
+            printf("  Kp: %.4f\n",read_Kp); // Print with 4 decimal places
+            printf("  Ki: %.4f\n",read_Ki);
+            printf("  Kd: %.4f\n",read_Kd);
+            printf("  KiMax: %u", read_KiMax);
+            printf("  DeadZone: %u", read_DeadZone);
+            printf("  MinPos: %u", read_Min);
+            printf("  MaxPos: %u", read_Max);
+         } else {
+            printf("READM1POSPID command failed.");
+            printf("Check wiring, power, address, and baud rate.");
+         }
 
          // Attempt to send the M1PercentPosition command
          // The position parameter expects uint16_t, so we cast our signed int16_t.
-         int success = controller.M1PercentPosition(MOTOR_ADDRESS, current_target_percent_pos, buffer_mode);
+         success = controller.M1PercentPosition(MOTOR_ADDRESS, current_target_percent_pos, buffer_mode);
 
          if (success) {
             printf("M1PPOS command successful. Motor should start moving.\n");
