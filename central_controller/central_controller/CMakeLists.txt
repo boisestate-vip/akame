@@ -7,9 +7,9 @@ find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
-add_executable(central_controller_node src/central_controller.cpp)
+add_executable(central_controller src/central_controller.cpp)
 ament_target_dependencies(
-  central_controller_node
+  central_controller
   rclcpp
   nav_msgs
   geometry_msgs
@@ -17,7 +17,7 @@ ament_target_dependencies(
 )
 
 install(TARGETS
-  central_controller_node
+  central_controller
   DESTINATION lib/${PROJECT_NAME}
 )
 
