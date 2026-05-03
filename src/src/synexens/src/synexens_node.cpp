@@ -113,6 +113,9 @@ private:
                          Synexens::SYPointCloudData * points = new Synexens::SYPointCloudData[nPoints];
 
                          errorCode = Synexens::GetDepthPointCloud(deviceID,frameData->m_pFrameInfo[i].m_nFrameWidth,frameData->m_pFrameInfo[i].m_nFrameHeight,(const unsigned short *)(frameData->m_pData) + nPos,points);
+                         if (errorCode != Synexens::SYERRORCODE_SUCCESS) {
+                            fprintf(stderr,"[SYNEXENS]: caught error getting point cloud data: %d\n",errorCode);
+                         }
 
                          /* collect our point cloud data, package it as a ros message, and send it off */
                          sensor_msgs::msg::PointCloud2 msg;
@@ -155,7 +158,7 @@ private:
                          msg.data.reserve(nPoints*sizeof(Synexens::SYPointCloudData));
                          //msg.data.resize(nPoints*sizeof(Synexens::SYPointCloudData));
                          uint8_t * to_uint = (uint8_t *)points;
-                         for (int i = 0; i < nPoints*sizeof(Synexens::SYPointCloudData); ++i) {
+                         for (size_t i = 0; i < nPoints*sizeof(Synexens::SYPointCloudData); ++i) {
                             msg.data.push_back(to_uint[i]);
                          }
                          //memcpy(msg.data.data(),points,nPoints*sizeof(Synexens::SYPointCloudData));
