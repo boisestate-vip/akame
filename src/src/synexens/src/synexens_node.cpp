@@ -249,6 +249,7 @@ public:
       /* the resolution to try for. Options are:
        *    [ 320_240, 640_480, 960_540, 1920_1080, 1600_1200 ] */
       this->declare_parameter("resolution","320_240");
+      //this->declare_parameter("resolution","640_480");
 
       /* the color resolution to try for. Options are:
        *    [ 320_240, 640_480, 960_540, 1920_1080, 1600_1200 ] */
