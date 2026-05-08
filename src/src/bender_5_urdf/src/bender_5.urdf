@@ -1,0 +1,189 @@
+<?xml version="1.0"?>
+<robot name="waveshare" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- most everything is copied from here -->
+  <!-- https://docs.nav2.org/setup_guides/urdf/setup_urdf.html -->
+
+  <!-- Define robot constants -->
+  <xacro:property name="chassis_width" value="0.29591"/>
+  <xacro:property name="chassis_length" value="0.44196"/>
+  <xacro:property name="chassis_height" value="0.254"/>
+
+  <xacro:property name="chassis_zoff" value="0.23622"/>
+
+  <xacro:property name="track_width" value="0.1778"/>
+  <xacro:property name="track_length" value="0.762"/>
+  <xacro:property name="track_height" value="0.1778"/>
+
+  <xacro:property name="track_yoff" value="0.37"/>
+  <xacro:property name="track_xforward" value="0.13462"/>
+
+  <xacro:property name="rear_gs2_height" value="0.1524"/>
+  <xacro:property name="rear_gs2_xoff" value="0.1778"/>
+  <xacro:property name="rear_gs2_yoff" value="0.37846"/>
+
+  <xacro:property name="front_gs5_height" value="0.165"/>
+  <xacro:property name="front_gs5_xoff" value="0.4445"/>
+  <xacro:property name="front_gs5_yoff" value="0.37846"/>
+
+  <xacro:property name="synexens_height" value="0.09398"/>
+  <xacro:property name="synexens_xoff" value="0.2794"/>
+  <xacro:property name="synexens_yoff" value="0.03048"/>
+
+  <xacro:property name="vive_xoff" value="0.1397"/>
+  <xacro:property name="vive_yoff" value="0.0"/>
+
+  <!-- Robot Base -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="Green">
+        <color rgba="0.0 1.0 0.0 0.5"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Rear GS2 Lidar -->
+  <xacro:macro name="rear_gs2" params="prefix y_reflect">
+     <link name="${prefix}_link">
+        <visual>
+           <origin xyz="0 0 0" rpy="0 0 0"/>
+           <geometry>
+              <box size="0.1 0.1 0.1"/>
+           </geometry>
+           <material name="Red">
+              <color rgba="0.9 0.2 0.2 1.0"/>
+           </material>
+        </visual>
+     </link>
+
+     <joint name="${prefix}_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="${prefix}_link"/>
+        <origin xyz="${-rear_gs2_xoff} ${y_reflect*rear_gs2_yoff} ${rear_gs2_height-chassis_zoff}" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+     </joint>
+  </xacro:macro>
+
+  <!-- Front GS5 Lidar -->
+  <xacro:macro name="front_gs5" params="prefix y_reflect">
+     <link name="${prefix}_link">
+        <visual>
+           <origin xyz="0 0 0" rpy="0 0 0"/>
+           <geometry>
+              <box size="0.1 0.1 0.1"/>
+           </geometry>
+           <material name="Orange">
+              <color rgba="0.9 0.4 0.2 1.0"/>
+           </material>
+        </visual>
+     </link>
+
+     <joint name="${prefix}_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="${prefix}_link"/>
+        <origin xyz="${front_gs5_xoff} ${y_reflect*front_gs5_yoff} ${front_gs5_height-chassis_zoff}" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+     </joint>
+  </xacro:macro>
+
+  <!-- Robot Footprint -->
+  <link name="base_footprint"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_footprint"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- tracks -->
+  <xacro:macro name="track" params="prefix y_reflect">
+    <link name="${prefix}_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+         <box size="${track_length} ${track_width} ${track_height}"/>
+        </geometry>
+        <material name="Purple">
+          <color rgba="0.5 0.0 0.5 1.0"/>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="${prefix}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${prefix}_link"/>
+      <origin xyz="${track_xforward} ${y_reflect*(track_yoff-(track_width/2.0))} ${(track_height/2.0)-chassis_zoff}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Synexens Lidar -->
+  <link name="synexens_link">
+     <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+           <box size="0.1 0.1 0.1"/>
+        </geometry>
+        <material name="Yellow">
+           <color rgba="1.0 1.0 0.2 1.0"/>
+        </material>
+     </visual>
+  </link>
+
+  <joint name="synexens_joint" type="fixed">
+     <parent link="base_link"/>
+     <child link="synexens_link"/>
+     <origin xyz="${synexens_xoff} ${-synexens_yoff} ${synexens_height-chassis_zoff}" rpy="0 0 0"/>
+     <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- Vive Tracker -->
+  <link name="vive_link">
+     <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+           <box size="0.1 0.1 0.1"/>
+        </geometry>
+        <material name="White">
+           <color rgba="1.0 1.0 1.0 1.0"/>
+        </material>
+     </visual>
+  </link>
+
+  <joint name="vive_joint" type="fixed">
+     <parent link="base_link"/>
+     <child link="vive_link"/>
+     <origin xyz="${-vive_xoff} ${vive_yoff} ${chassis_height/2.0}" rpy="0 0 0"/>
+     <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- Vectornav IMU -->
+  <link name="vectornav_link">
+     <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+           <box size="0.1 0.1 0.1"/>
+        </geometry>
+        <material name="Black">
+           <color rgba="0.0 0.0 0.0 1.0"/>
+        </material>
+     </visual>
+  </link>
+
+  <joint name="vectornav_link" type="fixed">
+     <parent link="base_link"/>
+     <child link="vectornav_link"/>
+     <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+     <axis xyz="0 1 0"/>
+  </joint>
+
+  <xacro:track prefix="track_l" y_reflect="1"/>
+  <xacro:track prefix="track_r" y_reflect="-1"/>
+  <xacro:rear_gs2 prefix="rear_gs2_l" y_reflect="1"/>
+  <xacro:rear_gs2 prefix="rear_gs2_r" y_reflect="-1"/>
+  <xacro:front_gs5 prefix="front_gs5_l" y_reflect="1"/>
+  <xacro:front_gs5 prefix="front_gs5_r" y_reflect="-1"/>
+
+</robot>

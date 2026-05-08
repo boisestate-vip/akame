@@ -115,10 +115,10 @@ public:
       this->declare_parameter("publish_visual",true);
 
       /* parameters for the map */
-      this->declare_parameter("map_obstacle_threshold",0.3); 
+      this->declare_parameter("map_obstacle_threshold",0.7); 
       /* parameters for the map */
       this->declare_parameter("map_resolution",0.1); /* meters */
-      this->declare_parameter("map_hit_weight",80); 
+      this->declare_parameter("map_hit_weight",70); 
       this->declare_parameter("map_miss_weight",10);
       this->declare_parameter("map_start_weight",50);
 
@@ -275,7 +275,9 @@ private:
       msg.header.frame_id = ref_frame;
       msg.header.stamp = this->get_clock()->now();
 
-      path_out->publish(msg);
+      if ( ! path.is_active()) {
+         path_out->publish(msg);
+      }
 
       /* a bit lazy to call this every time, but there is a way
        * to set up an interface to change this live, so I will

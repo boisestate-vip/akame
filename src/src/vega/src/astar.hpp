@@ -18,6 +18,8 @@
 
 #include "map.hpp"
 
+#define AKAME_ASTAR_QMAX 3500 
+
 struct timespec tnow(void) {
    struct timespec val;
    clock_gettime(CLOCK_REALTIME,&val);
@@ -28,7 +30,7 @@ double timedist(struct timespec & t0, struct timespec & t1) {
    long long sec_dist = t1.tv_sec - t0.tv_sec;
    long long nsec_dist = t1.tv_nsec - t0.tv_nsec;
 
-   return (double)sec_dist + (double)nsec_dist/1e9;
+   return std::fabs((double)sec_dist + (double)nsec_dist/1e9);
 }
 
 typedef struct node {
@@ -166,6 +168,10 @@ set_head:
       path.clear();
    }
 
+   int is_active() {
+      return active;
+   }
+
    // https://github.com/ros2/common_interfaces/blob/rolling/visualization_msgs/msg/Marker.msg
    void to_vis(visualization_msgs::msg::Marker & marker, GridMap * map) {
       marker.ns = "astar_vis";
@@ -174,7 +180,7 @@ set_head:
       marker.action = 0; /* add/modify */
       marker.pose.position.x = 0;
       marker.pose.position.y = 0;
-      marker.pose.position.x = 0;
+      marker.pose.position.z = 0;
       marker.scale.x = map->res();
       marker.scale.y = map->res();
       marker.scale.z = map->res();
@@ -205,8 +211,8 @@ set_head:
    // https://github.com/ros2/common_interfaces/blob/rolling/nav_msgs/msg/Path.msg
    void to_msg(nav_msgs::msg::Path & msg, GridMap * map) {
 
-      node_stub * pos = path.data();
-      node_stub * end = pos + path.size();
+      node_stub * pos = (path.data() + path.size()) - 1;
+      node_stub * end = path.data() - 1;
 
       while (pos != end) {
 
@@ -219,7 +225,7 @@ set_head:
 
          msg.poses.push_back(pose);
 
-         pos += 1;
+         pos -= 1;
       }
    }
 
@@ -268,7 +274,7 @@ do { \
       insert(start);
 
       int steps = 0;
-      while (!queue.empty()) {
+      while (!queue.empty() && queue.size() < AKAME_ASTAR_QMAX) {
 
          node * curr = pop();
 

@@ -220,6 +220,7 @@ public:
       this->declare_parameter("map_publish_interval",0.25);
       /* whether to publish the map frame of reference */
       this->declare_parameter("publish_map_frame",true);
+      this->declare_parameter("frame_publish_interval",0.005);
 
       /* topic to listen for source-of-truth odometry on */
       this->declare_parameter("pos_in","/demo/odom");
@@ -271,7 +272,7 @@ public:
          map_frame = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
          map_frame_callback = this->create_wall_timer(
                std::chrono::milliseconds(((long)(1000.0 *
-                        this->get_parameter("map_publish_interval").as_double()))),
+                        this->get_parameter("frame_publish_interval").as_double()))),
                std::bind(&SimpleMap::broadcast_map_frame, this));
       }
 
