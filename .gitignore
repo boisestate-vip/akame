@@ -1,6 +1,6 @@
-src/build
-src/install
-src/log
+src/src/build
+src/src/install
+src/src/log
 build
 install
 log

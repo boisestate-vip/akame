@@ -1,0 +1,15 @@
+/**:
+  ros__parameters:
+    # time to wait between collecting data in milliseconds 
+    poll_delay: 10
+    # the topic to publish the outgoing point cloud on
+    cloud_out: "points"
+    # the frame_id to publish data under
+    frame_id: "synexens_link"
+    # the type of stream to set the lidar to. Note that the options
+    # avaliabe for your sensor will print on initialization
+    stream_type: "depth"
+    # the resolution to set the depth camera to
+    resolution: "640_480"
+    # the resolution to set the color camera to
+    color_resolution: "320_240"
