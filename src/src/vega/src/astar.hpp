@@ -18,6 +18,8 @@
 
 #include "map.hpp"
 
+#define AKAME_ASTAR_QMAX 3500 
+
 struct timespec tnow(void) {
    struct timespec val;
    clock_gettime(CLOCK_REALTIME,&val);
@@ -28,7 +30,7 @@ double timedist(struct timespec & t0, struct timespec & t1) {
    long long sec_dist = t1.tv_sec - t0.tv_sec;
    long long nsec_dist = t1.tv_nsec - t0.tv_nsec;
 
-   return (double)sec_dist + (double)nsec_dist/1e9;
+   return std::fabs((double)sec_dist + (double)nsec_dist/1e9);
 }
 
 typedef struct node {
@@ -166,6 +168,10 @@ set_head:
       path.clear();
    }
 
+   int is_active() {
+      return active;
+   }
+
    // https://github.com/ros2/common_interfaces/blob/rolling/visualization_msgs/msg/Marker.msg
    void to_vis(visualization_msgs::msg::Marker & marker, GridMap * map) {
       marker.ns = "astar_vis";
@@ -268,7 +274,7 @@ do { \
       insert(start);
 
       int steps = 0;
-      while (!queue.empty()) {
+      while (!queue.empty() && queue.size() < AKAME_ASTAR_QMAX) {
 
          node * curr = pop();
 

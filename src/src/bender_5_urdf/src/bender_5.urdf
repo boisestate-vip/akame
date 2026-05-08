@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<robot name="waveshare" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- most everything is copied from here -->
+  <!-- https://docs.nav2.org/setup_guides/urdf/setup_urdf.html -->
+
+  <!-- Define robot constants -->
+  <xacro:property name="chassis_width" value="0.29591"/>
+  <xacro:property name="chassis_length" value="0.44196"/>
+  <xacro:property name="chassis_height" value="0.254"/>
+
+  <xacro:property name="chassis_zoff" value="0.23622"/>
+
+  <xacro:property name="track_width" value="0.1778"/>
+  <xacro:property name="track_length" value="0.762"/>
+  <xacro:property name="track_height" value="0.1778"/>
+
+  <xacro:property name="track_yoff" value="0.37"/>
+  <xacro:property name="track_xforward" value="0.13462"/>
+
+  <!-- Robot Base -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="Green">
+        <color rgba="0.0 1.0 0.0 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Robot Footprint -->
+  <link name="base_footprint"/>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_footprint"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- tracks -->
+  <xacro:macro name="track" params="prefix y_reflect">
+    <link name="${prefix}_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+         <box size="${track_length} ${track_width} ${track_height}"/>
+        </geometry>
+        <material name="Purple">
+          <color rgba="0.5 0.0 0.5 1.0"/>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="${prefix}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${prefix}_link"/>
+      <origin xyz="${track_xforward} ${y_reflect*track_yoff} ${(track_height/2.0)-chassis_zoff}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:track prefix="track_l" y_reflect="1"/>
+  <xacro:track prefix="track_r" y_reflect="-1"/>
+
+</robot>

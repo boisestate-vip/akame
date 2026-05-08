@@ -80,6 +80,17 @@ public:
     /* rate to publish commands at */
     this->declare_parameter("vel_publish_interval",0.1);
 
+    /* params for tuning the follower */
+    this->declare_parameter("angular_correction_threshold",0.15);
+    angular_correction_threshold = this->get_parameter("angular_correction_threshold").as_double();
+    this->declare_parameter("hit_distance",0.2);
+    hit_distance = this->get_parameter("hit_distance").as_double();
+    this->declare_parameter("angular_velocity_scale",0.25);
+    angular_velocity_scale = this->get_parameter("angular_velocity_scale").as_double();
+    this->declare_parameter("linear_velocity_scale",0.3);
+    linear_velocity_scale = this->get_parameter("linear_velocity_scale").as_double();
+
+
     subscriber = this->create_subscription<nav_msgs::msg::Path>(
                  this->get_parameter("path_in").as_string(),10,
                  std::bind(&Deneb::path_callback, this, _1));
@@ -119,6 +130,11 @@ private:
   nav_msgs::msg::Path path;
   pose_2d current_pos;
 
+  double angular_correction_threshold;
+  double hit_distance;
+  double angular_velocity_scale;
+  double linear_velocity_scale;
+
   void path_callback(const nav_msgs::msg::Path & msg) {
      path = msg;
   }
@@ -154,8 +170,9 @@ private:
         double dist;
         pose_2d next_2d;
 
+        unsigned int curr_pose = 0;
         do {
-           geometry_msgs::msg::PoseStamped next = path.poses.back();
+           geometry_msgs::msg::PoseStamped next = path.poses[curr_pose];
            next_2d = ros2_pose_to_pose_2d(next.pose);
 
            /* compute the distance between robot and next path node 
@@ -168,12 +185,12 @@ private:
 
            /* if we are within 0.25 (meters?) of the goal, consider
             * the node reached and go to the next one.             */
-           if (dist < 0.25) {
+           if (dist < hit_distance) {
 
-              path.poses.pop_back();
+              curr_pose += 1;
 
               /* check again to see if we have reached the end */
-              if (path.poses.size() == 0)
+              if (path.poses.size() == curr_pose)
                  goto publish;
            }
            else break;
@@ -195,8 +212,6 @@ private:
         /* transform the goal position into the robot's
          * frame of reference using an inverse rotation
          * matrix.                                      */
-        double t_x = (cos(current_pos.t) * rel_x) +
-                     (sin(current_pos.t) * rel_y);
         double t_y = (cos(current_pos.t) * rel_y) -
                      (sin(current_pos.t) * rel_x);
 
@@ -220,9 +235,9 @@ private:
 
         /* if this value is less than some arbitrary amount, drive forward,
          * otherwise rotate in the opposite direction.                     */
-        if (fabs(angular_error) < 0.25)
-           linear_vel = 0.1;
-        else angular_vel = (angular_error < 0 ? -1 : 1) * 0.15;
+        if (fabs(angular_error) < angular_correction_threshold)
+           linear_vel = linear_velocity_scale;
+        else angular_vel = (angular_error < 0 ? -1 : 1) * angular_velocity_scale;
      }
 
 publish:

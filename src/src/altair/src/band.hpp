@@ -12,8 +12,19 @@
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 
+#include "geometry_msgs/msg/point.hpp"
+
 #include <math.h>
 #include <stdio.h>
+
+/* the first two here are checking for straighforward illigal
+ * floating values. The last guy takes advantage of a property
+ * that a nan or inf will never compare equal to itself.
+ *
+ * The x != x check I think is one of the only good cross
+ * platform ways to determine floating point nan/inf, though
+ * it is very odd to look at...                              */
+#define BAD_VAL(x) (std::isnan(x) || std::isinf(x) || x != x)
 
 static inline double dist(const double x0, const double y0, const double x1, const double y1) {
    return std::sqrt( (x0-x1)*(x0-x1) + (y0-y1)*(y0-y1) );
@@ -51,7 +62,6 @@ public:
 
    void to_msg(nav_msgs::msg::Path & msg) {
 
-      printf("publishing path\n");
       node * curr = path;
 
       double travel = 0.0;
@@ -60,8 +70,6 @@ public:
          geometry_msgs::msg::PoseStamped pose;
          pose.pose.position.x = curr->pos.x;
          pose.pose.position.y = curr->pos.y;
-
-         printf("adding node (%f, %f) to path\n",curr->pos.x,curr->pos.y);
 
          msg.poses.push_back(pose);
 
@@ -78,7 +86,6 @@ public:
 
       node * curr = path;
 
-      double travel = 0.0;
       int count = 0;
       while (curr) {
          visualization_msgs::msg::Marker marker;
@@ -90,12 +97,12 @@ public:
          marker.ns = "elastic_vis";
          marker.id = count;
          marker.type = visualization_msgs::msg::Marker::SPHERE;
-         marker.action = 0; /* add/modify */
+         marker.action = 0; // add/modify
          marker.pose.position.x = curr->pos.x;
          marker.pose.position.y = curr->pos.y;
          marker.pose.position.z = 0;
-         marker.scale.x = rad;
-         marker.scale.y = rad;
+         marker.scale.x = rad * 2.0;
+         marker.scale.y = rad * 2.0;
          marker.scale.z = 0.1;
          marker.lifetime.sec = 1;
          marker.color.r = 0.0;
@@ -120,24 +127,20 @@ public:
       static node bootstrap;
       path = &bootstrap;
 
-      printf("loading path...\n");
-
       for (auto & pose : msg.poses) {
          node * next = (node *)calloc(sizeof(node),1);
 
          next->pos.x = pose.pose.position.x;
          next->pos.y = pose.pose.position.y;
+         next->d = bubble(next->pos);
 
          next->prev = path;
          path->next = next;
          path = next;
       }
 
-      printf("finishing\n");
-
       path = bootstrap.next;
       path->prev = NULL;
-      printf("finished\n");
    }
 
 #define ADVANCE(path)        \
@@ -146,29 +149,28 @@ do {                         \
    node * next = path->next; \
    free(path);               \
    path = next;              \
-   path->prev = NULL;        \
+   if (path)                 \
+      path->prev = NULL;     \
                              \
 } while (0)
 
    void step(double px, double py, uint32_t count) {
 
-      while (dist(px,py,path->pos.x,path->pos.y) < collide) {
-         printf("advancing past %f %f\n",path->pos.x,path->pos.y);
+      while (path && dist(px,py,path->pos.x,path->pos.y) < collide) {
          ADVANCE(path);
       }
 
       do {
-         printf("stepping.\n");
 
          /* setup the system */
          node * q0, * q, * q1;
          q0 = path;
+         if (q0 == NULL)
+            return;
          q = path->next;
-         printf("q: %p\n",q);
          if (q == NULL)
             return;
          q1 = q->next;
-         printf("q1: %p\n",q1);
          if (q1 == NULL)
             return;
 
@@ -178,39 +180,42 @@ do {                         \
          while (q1) {
             point_val nearest = obs.get(q->pos);
             point fe = { 0, 0 };
-            if (nearest.val < d0)
+            if (nearest.val < d0) {
+               if (is_collision(nearest.val)) {
+                  clear();
+                  return;
+               }
                fe = external(nearest.p,q->pos);
+               q->d = nearest.val;
+            }
+            else q->d = d0;
             point fi = internal(q0->pos,q->pos,q1->pos);
-            point fc = constraint(q0->pos,q->pos,q1->pos);
-            point f = { fe.x + fi.x + fc.x, fe.y + fi.y + fc.y };
-            printf("applying force %f,%f to %f,%f\n",f.x,f.y,q->pos.x,q->pos.y);
+            if (BAD_VAL(fi.x) || BAD_VAL(fi.y)) {
+               clear(); return; /* this seems to occur on collision... */
+            }
+            point f = { fe.x + fi.x, fe.y + fi.y };
+            double fc = constraint(q0->pos,q1->pos,f);
 
-            q->pos.x += f.x;
-            q->pos.y += f.y;
-            q->d = (nearest.val > extent ? extent : nearest.val);
+            q->pos.x += fc * f.x;
+            q->pos.y += fc * f.y;
 
             double nextto = dist(q0->pos.x,q0->pos.y,q->pos.x,q->pos.y);
             q0->n = nextto;
 
             q0 = q; q = q1; q1 = q1->next;
             travel += nextto;
-            printf("adding %f to travel: %f\n",nextto,travel);
             if (travel > extent)
                break;
          }
          q->d = bubble(q->pos);
 
-         /*
          q0 = path; q = q0->next; q1 = q->next;
-
-         printf("culling/birthing\n");
 
          travel = 0.0;
          while (q1) {
 
             double between = dist(q0->pos.x,q0->pos.y,q1->pos.x,q1->pos.y);
             if ((q0->d + q1->d)*0.85 > between) {
-               printf("culling %f,%f\n",q->pos.x,q->pos.y);
 
                free(q);
 
@@ -219,7 +224,7 @@ do {                         \
 
                q = q1; q1 = q1->next;
             }
-            else if (q->n > q0->d + q->d) {
+            else if (dist(q0->pos.x,q0->pos.y,q->pos.x,q->pos.y) > (q0->d + q->d)*0.9) {
 
                node * qnew = (node *)calloc(sizeof(node),1);
                qnew->pos.x = (q0->pos.x + q->pos.x) / 2.0;
@@ -227,8 +232,8 @@ do {                         \
                qnew->d = bubble(qnew->pos);
                qnew->prev = q0;
                qnew->next = q;
-
-               printf("birthing %f,%f\n",qnew->pos.x,qnew->pos.y);
+               q0->next = qnew;
+               q->prev = qnew;
 
                q0 = q; q = q1; q1 = q1->next;
             }
@@ -236,18 +241,25 @@ do {                         \
                q0 = q; q = q1; q1 = q1->next;
             }
 
-            travel += q->n;
-            printf("adding %f to travel: %f\n",q->n,travel);
             if (travel > extent)
                break;
+            travel += q->n;
          }
-         */
+         if (dist(q0->pos.x,q0->pos.y,q->pos.x,q->pos.y) > q0->d + q->d) {
+            node * qnew = (node *)calloc(sizeof(node),1);
+            qnew->pos.x = (q0->pos.x + q->pos.x) / 2.0;
+            qnew->pos.y = (q0->pos.y + q->pos.y) / 2.0;
+            qnew->d = bubble(qnew->pos);
+            qnew->prev = q0;
+            qnew->next = q;
+            q0->next = qnew;
+            q->prev = qnew;
+         }
       } while (--count);
    }
 #undef ADVANCE
 
    void clear() {
-      printf("clearing previous path\n");
       obs.clear();
 
       node * next;
@@ -283,20 +295,22 @@ private:
 
       point d_div = point{ D.x / dist, D.y / dist};
 
-      return point{ d_div.x * d_d0 * kr, d_div.y * d_d0 * kr};
+      return point{ -d_div.x * d_d0 * kr, -d_div.y * d_d0 * kr};
    }
 
    /* motion constraint force. Normally doesn't have a multiplier but I am including it */
-   inline const point constraint(const point & qprev, const point & q, const point & qnext) const {
-      point diff_next = point{ qnext.x - q.x, qnext.y - q.y};
-      point diff_prev = point{ q.x - qprev.x, q.y - qprev.y};
-      double dist_next = sqrt( diff_next.x*diff_next.x + diff_next.y*diff_next.y );
-      double dist_prev = sqrt( diff_prev.x*diff_prev.x + diff_prev.y*diff_prev.y );
+   inline double constraint(const point & qprev, const point & qnext, const point & f) const {
+      double c = std::fabs( qprev.y - qnext.y );
+      double b = std::fabs( qprev.x - qnext.x );
+      double a = std::sqrt( c*c + b*b );
+      double B = std::asin( b / a);
+      double A = std::atan2(f.y,f.x);
+      double x = std::fabs(A - B);
 
-      point force = point{ (diff_next.x / dist_next) + (diff_prev.x / dist_prev),
-                           (diff_next.y / dist_next) + (diff_prev.y / dist_prev)};
+      /* this computes the force based on the distance from PI/2 */
+      double fc = 1.0 - (km * ( std::fabs( std::fmod(x,M_PI) - (M_PI / 2.0)) / (M_PI / 2.0)));
 
-      return point{ force.x * km, force.y * km};
+      return std::fmax(fc,0.0);
    }
 
    inline double bubble(point q) {
