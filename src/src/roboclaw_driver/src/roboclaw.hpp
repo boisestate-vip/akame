@@ -13,7 +13,7 @@
 #include <time.h>
 #include <sys/select.h>
 
-#define ROBOCLAW_MAXRETRY 2
+#define ROBOCLAW_MAXRETRY 4
 #define SetDWORDval(arg) (uint8_t)(((uint32_t)arg)>>24),(uint8_t)(((uint32_t)arg)>>16),(uint8_t)(((uint32_t)arg)>>8),(uint8_t)arg 
 #define SetWORDval(arg) (uint8_t)(((uint16_t)arg)>>8),(uint8_t)arg
 /* best effort, https://www.man7.org/linux/man-pages/man3/termios.3.html */
