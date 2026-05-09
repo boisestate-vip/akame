@@ -11,9 +11,11 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "std_msgs/msg/empty.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "builtin_interfaces/msg/time.hpp"
 #include "tf2/LinearMath/Quaternion.h"
+#include "tf2/LinearMath/Transform.h"
 
 /*
  * ROS2 node for interfacing with steam vr and registering position and
@@ -51,10 +53,27 @@ public:
        * nice. A value of zero will result in no delay. Note the value
        * is in milliseconds                                            */
       this->declare_parameter("poll_delay",25);
+      /* whether to use the first value as zero and take all later values
+       * from that point. */
+      this->declare_parameter("zero_on_init",true);
+      /* this allows us to send a message to zero while running. */
+      this->declare_parameter("zero_topic","vive/zero");
+
+      if (this->get_parameter("zero_on_init").as_bool()) {
+         first_time = 1;
+      }
+      else {
+         first_time = 0;
+         zero_transform = tf2::Transform(tf2::Quaternion(0,0,0,1));
+      }
 
       /* odometry publisher */
       odometry_out = this->create_publisher<nav_msgs::msg::Odometry>(
             this->get_parameter("topic").as_string(), 10);
+
+      zero_in = this->create_subscription<std_msgs::msg::Empty>(
+            this->get_parameter("zero_in").as_string(), 10,
+            std::bind(&OpenVRTrackerNode::collect_zero, this, _1));
 
       /* welcome the user. We are all nice here */
       RCLCPP_INFO(this->get_logger(),"Hello and welcome...");
@@ -85,11 +104,18 @@ private:
    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odometry_out;
    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markers_out;
 
+   /* subscribers */
+   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr zero_in;
+
    /* for markers */
    uint id_num;
 
    /* capture the poll delay on startup and do not deviate from it */
    int poll_delay;
+
+   /* flag for setting the zero point and a holding place for the transform data */
+   int first_time;
+   tf2::Transform zero_transform;
 
    /* this is an infinite loop which continously polls for input from the vive
     * node and publishes any input discovered to the associated odometry topic */
@@ -158,69 +184,88 @@ retry:
                /* ensure that the tracking data is valid before publishing it */
                if (trackedDevicePose.bPoseIsValid) {
 
-                  /* begin construction of our message */
-                  nav_msgs::msg::Odometry msg;
-                  msg.header.stamp = this->get_clock()->now();
-                  msg.header.frame_id = this->get_parameter("frame_id").as_string();
-
                   /* the layout of this data is the upper three rows
                    * of a homogeneous transformation matrix. Because
                    * of this, our pose can be recovered from the fourth
                    * column, and our rotation can be recovered from the
                    * rotation matrix in the upper left 3x3 area        */
-
-                  /* we will not fill in the covariance matrix */
-                  geometry_msgs::msg::PoseWithCovariance pose;
-                  pose.pose.position.x = vive_pose.m[0][3];
-                  pose.pose.position.y = vive_pose.m[1][3];
-                  pose.pose.position.z = vive_pose.m[2][3];
+                  double tx, ty, tz, qx, qy, qz, qw;
+                  tx = vive_pose.m[0][3];
+                  ty = vive_pose.m[1][3];
+                  tz = vive_pose.m[2][3];
 
                   /* convert from rotation matrix to quaternion */
                   double trace = vive_pose.m[0][0] + vive_pose.m[1][1] + vive_pose.m[2][2];
                   if (trace > 0.0) {
                      double k = 0.5 / sqrt(1.0 + trace);
-                     pose.pose.orientation.x = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
-                     pose.pose.orientation.y = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
-                     pose.pose.orientation.z = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
-                     pose.pose.orientation.w = 0.25 / k;
+                     qx = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
+                     qy = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
+                     qz = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
+                     qw = 0.25 / k;
                   }
                   else if ((vive_pose.m[0][0] > vive_pose.m[1][1]) && (vive_pose.m[0][0] > vive_pose.m[2][2])) {
                      double k = 0.5 / sqrt(1.0 + vive_pose.m[0][0] - vive_pose.m[1][1] - vive_pose.m[2][2]);
-                     pose.pose.orientation.x = 0.25 / k;
-                     pose.pose.orientation.y = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
-                     pose.pose.orientation.z = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
-                     pose.pose.orientation.w = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
+                     qx = 0.25 / k;
+                     qy = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
+                     qz = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
+                     qw = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
                   }
                   else if (vive_pose.m[1][1] > vive_pose.m[2][2]) {
                      double k = 0.5 / sqrt(1.0 + vive_pose.m[1][1] - vive_pose.m[0][0] - vive_pose.m[2][2]);
-                     pose.pose.orientation.x = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
-                     pose.pose.orientation.y = 0.25 / k;
-                     pose.pose.orientation.z = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
-                     pose.pose.orientation.w = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
+                     qx = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
+                     qy = 0.25 / k;
+                     qz = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
+                     qw = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
                   }
                   else {
                      double k = 0.5 / sqrt(1.0 + vive_pose.m[2][2] - vive_pose.m[0][0] - vive_pose.m[1][1]);
-                     pose.pose.orientation.x = k * (vive_pose.m[2][0] + vive_pose.m[0][2]);
-                     pose.pose.orientation.y = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
-                     pose.pose.orientation.z = 0.25 / k;
-                     pose.pose.orientation.w = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
+                     qx = k * (vive_pose.m[2][0] + vive_pose.m[0][2]);
+                     qy = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
+                     qz = 0.25 / k;
+                     qw = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
                   }
 
-                  /* fill out our velocity values */
-                  geometry_msgs::msg::TwistWithCovariance twist;
-                  twist.twist.linear.x = linear_vel.v[0];
-                  twist.twist.linear.y = linear_vel.v[1];
-                  twist.twist.linear.z = linear_vel.v[2];
+                  auto transform = tf2::Transform(tf2::Quaternion(qx,qy,qz,qw),tf2::Vector3(tx,ty,tz));
 
-                  twist.twist.angular.x = angular_vel.v[0];
-                  twist.twist.angular.y = angular_vel.v[1];
-                  twist.twist.angular.z = angular_vel.v[2];
+                  if (first_time) {
+                     zero_transform = transform.inverse();
+                     first_time = 0;
+                  }
+                  else {
 
-                  msg.pose = pose;
-                  msg.twist = twist;
+                     auto zeroed = transform * zero_transform;
 
-                  odometry_out->publish(msg);
+                     /* begin construction of our message */
+                     nav_msgs::msg::Odometry msg;
+                     msg.header.stamp = this->get_clock()->now();
+                     msg.header.frame_id = this->get_parameter("frame_id").as_string();
 
+                     /* we will not fill in the covariance matrix */
+                     geometry_msgs::msg::PoseWithCovariance pose;
+                     pose.pose.position.x = zeroed.getOrigin().x();
+                     pose.pose.position.y = zeroed.getOrigin().y();
+                     pose.pose.position.z = zeroed.getOrigin().z();
+
+                     pose.pose.orientation.x = zeroed.getRotation().x();
+                     pose.pose.orientation.y = zeroed.getRotation().y();
+                     pose.pose.orientation.z = zeroed.getRotation().z();
+                     pose.pose.orientation.w = zeroed.getRotation().w();
+
+                     /* fill out our velocity values */
+                     geometry_msgs::msg::TwistWithCovariance twist;
+                     twist.twist.linear.x = linear_vel.v[0];
+                     twist.twist.linear.y = linear_vel.v[1];
+                     twist.twist.linear.z = linear_vel.v[2];
+
+                     twist.twist.angular.x = angular_vel.v[0];
+                     twist.twist.angular.y = angular_vel.v[1];
+                     twist.twist.angular.z = angular_vel.v[2];
+
+                     msg.pose = pose;
+                     msg.twist = twist;
+
+                     odometry_out->publish(msg);
+                  }
                }
             }
          }
@@ -288,79 +333,103 @@ retry:
 
                if (trackedDevicePose.bPoseIsValid) {
 
-                  nav_msgs::msg::Odometry msg;
-                  msg.header.stamp = this->get_clock()->now();
-                  msg.header.frame_id = this->get_parameter("frame_id").as_string();
-
-                  /* we will not fill in the covariance matrix */
-                  geometry_msgs::msg::PoseWithCovariance pose;
-                  pose.pose.position.x = vive_pose.m[0][3];
-                  pose.pose.position.z = vive_pose.m[1][3];
-                  pose.pose.position.y = vive_pose.m[2][3];
+                  double tx, ty, tz, qx, qy, qz, qw;
+                  tx = vive_pose.m[0][3];
+                  ty = vive_pose.m[1][3];
+                  tz = vive_pose.m[2][3];
 
                   /* convert from rotation matrix to quaternion */
                   double trace = vive_pose.m[0][0] + vive_pose.m[1][1] + vive_pose.m[2][2];
                   if (trace > 0.0) {
                      double k = 0.5 / sqrt(1.0 + trace);
-                     pose.pose.orientation.x = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
-                     pose.pose.orientation.y = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
-                     pose.pose.orientation.z = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
-                     pose.pose.orientation.w = 0.25 / k;
+                     qx = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
+                     qy = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
+                     qz = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
+                     qw = 0.25 / k;
                   }
-else if ((vive_pose.m[0][0] > vive_pose.m[1][1]) && (vive_pose.m[0][0] > vive_pose.m[2][2])) {
+                  else if ((vive_pose.m[0][0] > vive_pose.m[1][1]) && (vive_pose.m[0][0] > vive_pose.m[2][2])) {
                      double k = 0.5 / sqrt(1.0 + vive_pose.m[0][0] - vive_pose.m[1][1] - vive_pose.m[2][2]);
-                     pose.pose.orientation.x = 0.25 / k;
-                     pose.pose.orientation.y = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
-                     pose.pose.orientation.z = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
-                     pose.pose.orientation.w = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
+                     qx = 0.25 / k;
+                     qy = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
+                     qz = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
+                     qw = k * (vive_pose.m[1][2] - vive_pose.m[2][1]);
                   }
                   else if (vive_pose.m[1][1] > vive_pose.m[2][2]) {
                      double k = 0.5 / sqrt(1.0 + vive_pose.m[1][1] - vive_pose.m[0][0] - vive_pose.m[2][2]);
-                     pose.pose.orientation.x = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
-                     pose.pose.orientation.y = 0.25 / k;
-                     pose.pose.orientation.z = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
-                     pose.pose.orientation.w = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
+                     qx = k * (vive_pose.m[0][1] + vive_pose.m[1][0]);
+                     qy = 0.25 / k;
+                     qz = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
+                     qw = k * (vive_pose.m[2][0] - vive_pose.m[0][2]);
                   }
                   else {
                      double k = 0.5 / sqrt(1.0 + vive_pose.m[2][2] - vive_pose.m[0][0] - vive_pose.m[1][1]);
-                     pose.pose.orientation.x = k * (vive_pose.m[2][0] + vive_pose.m[0][2]);
-                     pose.pose.orientation.y = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
-                     pose.pose.orientation.z = 0.25 / k;
-                     pose.pose.orientation.w = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
+                     qx = k * (vive_pose.m[2][0] + vive_pose.m[0][2]);
+                     qy = k * (vive_pose.m[1][2] + vive_pose.m[2][1]);
+                     qz = 0.25 / k;
+                     qw = k * (vive_pose.m[0][1] - vive_pose.m[1][0]);
                   }
 
-                  geometry_msgs::msg::TwistWithCovariance twist;
-                  twist.twist.linear.x = linear_vel.v[0];
-                  twist.twist.linear.y = linear_vel.v[1];
-                  twist.twist.linear.z = linear_vel.v[2];
+                  auto transform = tf2::Transform(tf2::Quaternion(qx,qy,qz,qw),tf2::Vector3(tx,ty,tz));
 
-                  twist.twist.angular.x = angular_vel.v[0];
-                  twist.twist.angular.y = angular_vel.v[1];
-                  twist.twist.angular.z = angular_vel.v[2];
+                  if (first_time) {
+                     zero_transform = transform.inverse();
+                     first_time = 0;
+                  }
+                  else {
 
-                  msg.pose = pose;
-                  msg.twist = twist;
+                     auto zeroed = transform * zero_transform;
 
-                  visualization_msgs::msg::Marker marker;
-                  marker.ns = "vive_points";
-                  marker.id = ++id_num;
-                  marker.action = visualization_msgs::msg::Marker::ADD;
-                  marker.type = visualization_msgs::msg::Marker::CUBE;
-                  builtin_interfaces::msg::Duration lifetime; lifetime.sec = 2;
-                  marker.lifetime = lifetime;
-                  marker.pose = pose.pose;
-                  marker.color.r = 0;
-                  marker.color.g = 1;
-                  marker.color.b = 0;
-                  marker.color.a = 1;
-                  marker.scale.x = 0.1;
-                  marker.scale.y = 0.1;
-                  marker.scale.z = 0.1;
-                  marker.header.frame_id = this->get_parameter("frame_id").as_string();
-                  marker.header.stamp = this->get_clock()->now();
+                     /* begin construction of our message */
+                     nav_msgs::msg::Odometry msg;
+                     msg.header.stamp = this->get_clock()->now();
+                     msg.header.frame_id = this->get_parameter("frame_id").as_string();
 
-                  odometry_out->publish(msg);
-                  markers_out->publish(marker);
+                     /* we will not fill in the covariance matrix */
+                     geometry_msgs::msg::PoseWithCovariance pose;
+                     pose.pose.position.x = zeroed.getOrigin().x();
+                     pose.pose.position.y = zeroed.getOrigin().y();
+                     pose.pose.position.z = zeroed.getOrigin().z();
+
+                     pose.pose.orientation.x = zeroed.getRotation().x();
+                     pose.pose.orientation.y = zeroed.getRotation().y();
+                     pose.pose.orientation.z = zeroed.getRotation().z();
+                     pose.pose.orientation.w = zeroed.getRotation().w();
+
+                     /* fill out our velocity values */
+                     geometry_msgs::msg::TwistWithCovariance twist;
+                     twist.twist.linear.x = linear_vel.v[0];
+                     twist.twist.linear.y = linear_vel.v[1];
+                     twist.twist.linear.z = linear_vel.v[2];
+
+                     twist.twist.angular.x = angular_vel.v[0];
+                     twist.twist.angular.y = angular_vel.v[1];
+                     twist.twist.angular.z = angular_vel.v[2];
+
+                     msg.pose = pose;
+                     msg.twist = twist;
+
+                     odometry_out->publish(msg);
+
+                     visualization_msgs::msg::Marker marker;
+                     marker.ns = "vive_points";
+                     marker.id = ++id_num;
+                     marker.action = visualization_msgs::msg::Marker::ADD;
+                     marker.type = visualization_msgs::msg::Marker::CUBE;
+                     builtin_interfaces::msg::Duration lifetime; lifetime.sec = 2;
+                     marker.lifetime = lifetime;
+                     marker.pose = pose.pose;
+                     marker.color.r = 0;
+                     marker.color.g = 1;
+                     marker.color.b = 0;
+                     marker.color.a = 1;
+                     marker.scale.x = 0.1;
+                     marker.scale.y = 0.1;
+                     marker.scale.z = 0.1;
+                     marker.header.frame_id = this->get_parameter("frame_id").as_string();
+                     marker.header.stamp = this->get_clock()->now();
+
+                     markers_out->publish(marker);
+                  }
 
                }
             }
@@ -369,6 +438,11 @@ else if ((vive_pose.m[0][0] > vive_pose.m[1][1]) && (vive_pose.m[0][0] > vive_po
       }
 
       vr::VR_Shutdown();
+   }
+
+   void collect_zero(const std_msgs::msg::Empty & msg) {
+      (void)msg;
+      first_time = 1;
    }
 
 };

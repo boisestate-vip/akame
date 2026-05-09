@@ -5,3 +5,4 @@ build
 install
 log
 src/src/ydlidar_ros2_driver/.deps
+src/src/vive_tracker/.deps

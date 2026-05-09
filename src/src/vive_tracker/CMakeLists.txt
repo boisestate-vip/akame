@@ -24,6 +24,7 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(OpenVR REQUIRED)
 
@@ -32,7 +33,9 @@ find_package(OpenVR REQUIRED)
 
 add_executable(vive_tracker src/vive_tracker.cpp)
 target_link_libraries(vive_tracker OpenVR::OpenVR)
-ament_target_dependencies(vive_tracker rclcpp sensor_msgs geometry_msgs visualization_msgs nav_msgs tf2)
+ament_target_dependencies(vive_tracker rclcpp sensor_msgs 
+                          geometry_msgs visualization_msgs 
+                          nav_msgs std_msgs tf2)
 
 install(
    TARGETS vive_tracker
