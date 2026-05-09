@@ -17,6 +17,9 @@
 
 #include "geometry_msgs/msg/twist.hpp"
 
+#include "std_msgs/msg/int32.hpp"
+#include "std_msgs/msg/float64.hpp"
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -53,8 +56,9 @@ public:
 
    F710() : Node("f710") {
 
-      /* the topic to listen for scans on */
       this->declare_parameter("vel_out","/cmd_vel");
+      this->declare_parameter("arm_out","/roboclaw");
+      this->declare_parameter("drum_out","/drum");
 
       /* maximum velocity to scale everything by */
       this->declare_parameter("max_vel", 1.0);
@@ -72,6 +76,10 @@ public:
 
       cmd_out = this->create_publisher<geometry_msgs::msg::Twist>(
             this->get_parameter("vel_out").as_string(), 10);
+      arm_out = this->create_publisher<std_msgs::msg::Int32>(
+            this->get_parameter("arm_out").as_string(), 10);
+      drum_out = this->create_publisher<std_msgs::msg::Float64>(
+            this->get_parameter("drum_out").as_string(), 10);
 
       publish_rate = this->get_parameter("publish_rate").as_double();
 
@@ -116,15 +124,18 @@ public:
 
 private:
 
-   /* reception area for the scans */
    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_out;
+   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr arm_out;
+   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr drum_out;
 
    /* callback interval to publish twist */
    rclcpp::TimerBase::SharedPtr cmd_callback;
 
    /* up to date twist to publish from f710 thread */
    geometry_msgs::msg::Twist last_twist;
-   std::mutex twist_lock;
+   std_msgs::msg::Int32 last_arm;
+   std_msgs::msg::Float64 last_drum;
+   std::mutex state_lock;
 
    std::thread f710_thread;
 
@@ -138,9 +149,11 @@ private:
    double publish_rate;
 
    void publish_cmd_vel() {
-      twist_lock.lock();
+      state_lock.lock();
          cmd_out->publish(last_twist);
-      twist_lock.unlock();
+         arm_out->publish(last_arm);
+         drum_out->publish(last_drum);
+      state_lock.unlock();
    }
 
    void get_f710_values() {
@@ -154,7 +167,21 @@ private:
 
             double lwh = ((double)(stat.lv_fr - 127) / -128.0) * max_vel;
             double rwh = ((double)(stat.rv_fr - 127) / -128.0) * max_vel;
-            printf("lwh: %lf, rwh: %lf\n",lwh,rwh);
+
+            int32_t arm_speed = 0;
+            if (stat.lt)
+               arm_speed = 10000;
+            else if (stat.lb)
+               arm_speed = -10000;
+
+            double drum_speed = 0;
+            if (stat.rt)
+               drum_speed = -15;
+            else if (stat.rb)
+               drum_speed = 15;
+
+            printf("lwh: %lf, rwh: %lf, arm: %d, drum: %lf\n",
+                   lwh,rwh,arm_speed,drum_speed);
 
             /* here we compute the angular velocity assuming
              * a value of 1.0 for b. This seems logical to
@@ -166,10 +193,12 @@ private:
             double w = rwh - lwh;
             double V = (rwh + lwh) / 2.0;
 
-            twist_lock.lock();
+            state_lock.lock();
                last_twist.linear.x = V;
                last_twist.angular.z = w;
-            twist_lock.unlock();
+               last_arm.data = arm_speed;
+               last_drum.data = drum_speed;
+            state_lock.unlock();
          }
       }
    }
