@@ -1,0 +1,38 @@
+/akame/synexens_node:
+  ros__parameters:
+    poll_delay: 50
+    cloud_out: points
+    frame_id: synexens_link
+    stream_type: depth
+    resolution: "320_240"
+    color_resolution: "320_240"
+
+/akame/roboclaw_driver:
+  ros__parameters:
+    roboclaw_port: /dev/ttyACM0
+    baud: 34800
+    cmd_vel_in: /roboclaw_vel
+    cmd_pos_in: /roboclaw_pos
+    calibrate_in: /roboclaw_calibrate
+    address: 0x80
+    pos_homing_hz: 50
+
+/akame/go_m8010_6_driver:
+  ros__parameters:
+    cmd_in: cmd_vel
+    left_motor: /dev/ttyUSB0
+    right_motor: /dev/ttyUSB1
+    left_motor_id: 0
+    right_motor_id: 1
+    position_damping: 0.005
+    velocity_damping: 0.01
+    wheel_radius: 1.0
+    vehicle_width: 0.076
+
+/akame/drum_driver:
+  ros__parameters:
+    cmd_in: "/drum"
+    motor: "/dev/ttyUSB2"
+    motor_id: 2
+    position_damping: 0.005
+    velocity_damping: 0.01
