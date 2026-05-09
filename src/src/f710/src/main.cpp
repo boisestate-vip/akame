@@ -57,7 +57,7 @@ public:
    F710() : Node("f710") {
 
       this->declare_parameter("vel_out","/cmd_vel");
-      this->declare_parameter("arm_out","/roboclaw");
+      this->declare_parameter("arm_out","/roboclaw_vel");
       this->declare_parameter("drum_out","/drum");
 
       /* maximum velocity to scale everything by */

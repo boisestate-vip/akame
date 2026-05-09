@@ -9,7 +9,7 @@
 
 /akame/roboclaw_driver:
   ros__parameters:
-    roboclaw_port: /dev/ttyACM0
+    roboclaw_port: "/dev/serial/by-id/usb-Teensyduino_USB_Serial_14654310-if00"
     baud: 34800
     cmd_vel_in: /roboclaw_vel
     cmd_pos_in: /roboclaw_pos
@@ -20,8 +20,8 @@
 /akame/go_m8010_6_driver:
   ros__parameters:
     cmd_in: cmd_vel
-    left_motor: /dev/ttyUSB0
-    right_motor: /dev/ttyUSB1
+    left_motor: "/dev/ttyUSB0"
+    right_motor: "/dev/ttyUSB1"
     left_motor_id: 0
     right_motor_id: 1
     position_damping: 0.005
