@@ -112,14 +112,14 @@ public:
       this->declare_parameter("path_publish_interval",0.1);
 
       /* map specific parameters */
-      this->declare_parameter("internal_multiplier",0.01);
-      this->declare_parameter("external_multiplier",0.01);
-      this->declare_parameter("constraint_multiplier",1.00);
-      this->declare_parameter("distance_cutoff",1.0);
-      this->declare_parameter("map_height",40);
+      this->declare_parameter("internal_multiplier",0.030);
+      this->declare_parameter("external_multiplier",0.060);
+      this->declare_parameter("constraint_multiplier",1.2);
+      this->declare_parameter("distance_cutoff",0.85);
+      this->declare_parameter("map_height",70);
       this->declare_parameter("bin_width",0.3);
       this->declare_parameter("max_length",3.0);
-      this->declare_parameter("hit_distance",0.2);
+      this->declare_parameter("hit_distance",0.20);
 
       /* now instantiate our subscriptions to our information sources */
       pos_in = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -150,7 +150,7 @@ public:
                   this->get_parameter("path_publish_interval").as_double()))),
          std::bind(&Altair::publish_path, this));
 
-      visual_out = this->create_publisher<visualization_msgs::msg::Marker>(
+      visual_out = this->create_publisher<visualization_msgs::msg::MarkerArray>(
             this->get_parameter("visual_out").as_string(), 10);
 
       band = Band(
@@ -198,7 +198,7 @@ private:
 
    /* the topic to publish the smoothed path from */
    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_out;
-   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr visual_out;
+   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr visual_out;
    rclcpp::TimerBase::SharedPtr path_callback;
 
    /* === node callback handlers === */
@@ -246,7 +246,11 @@ private:
       if ( ! band.has_path())
          return;
 
-      band.step(pos.x,pos.y,10);
+      band.step(pos.x,pos.y,1);
+      /* the band can break if we step too
+       * close to an obstacle...          */
+      if ( ! band.has_path())
+         return;
 
       nav_msgs::msg::Path msg;
 
@@ -265,8 +269,9 @@ private:
             m.header.frame_id = "map";
             m.header.stamp = this->get_clock()->now();
 
-            visual_out->publish(m);
          }
+
+         visual_out->publish(markers);
       }
    }
 

@@ -301,7 +301,6 @@ public:
       int32_t old_xmin = msg.info.origin.position.x / resolution;
       int32_t old_ymin = msg.info.origin.position.y / resolution;
       int32_t old_xlen = msg.info.width;
-      int32_t old_ylen = msg.info.height;
       int res = grow_to(xlow,ylow,xhigh,yhigh);
       memset(map,0,len); // clear the old map
       int32_t xoff = old_xmin - xmin;
@@ -316,7 +315,7 @@ public:
             internal_add_circle(x+y,100);
          }
          x += 1;
-         if (x >= old_xlen+xoff) {
+         if (x >= (uint32_t)(old_xlen+xoff)) {
             y += xlen;
             x = xoff;
          }
@@ -328,7 +327,7 @@ public:
    }
 
    void safe_add(int32_t pos, uint8_t val) {
-      if (pos < 0 || pos >= len)
+      if (pos < 0 || (uint32_t)pos >= len)
          return;
       map[pos] = val;
    }

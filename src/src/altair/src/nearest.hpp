@@ -3,6 +3,8 @@
 
 #define __AKAME_NEAREST
 
+#include <stdio.h>
+
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "common.h"
 #include <float.h>
@@ -38,16 +40,18 @@ public:
 
       double x = map.info.origin.position.x;
       double y = map.info.origin.position.y;
-      for (uint32_t xstp = 0; xstp < xmax; ++xstp) {
-         for (uint32_t ystp = 0; ystp < ymax; ++ystp) {
+      for (uint32_t ystp = 0; ystp < ymax; ++ystp) {
+         for (uint32_t xstp = 0; xstp < xmax; ++xstp) {
 
-            if (*idx > map_height)
+            if (*idx > map_height) {
                values.push_back(point{x,y});
+            }
 
             idx += 1;
 
             x += step;
          }
+         x = map.info.origin.position.x;
          y += step;
       }
    }
