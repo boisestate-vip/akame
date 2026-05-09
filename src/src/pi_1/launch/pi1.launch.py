@@ -58,8 +58,8 @@ def generate_launch_description():
 
     return LaunchDescription([
         params_declare,
-        front_left_gs5,
-        front_right_gs5,
+        #front_left_gs5,
+        #front_right_gs5,
         rear_left_gs2,
         rear_right_gs2,
     ])

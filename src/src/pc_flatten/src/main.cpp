@@ -86,7 +86,7 @@ public:
       collect_inner_box_entries(inner_box_str);
 
       /* reference frame to publish in */
-      this->declare_parameter("frame_out","map");
+      this->declare_parameter("frame_out","base_link");
       frame_out = this->get_parameter("frame_out").as_string();
 
       cloud_out = this->create_publisher<sensor_msgs::msg::PointCloud2>(

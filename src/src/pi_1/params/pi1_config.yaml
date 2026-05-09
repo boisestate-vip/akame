@@ -58,7 +58,7 @@
 
 /akame/rear_left_gs2:
   ros__parameters:
-    port: /dev/ttyUSB0
+    port: "/dev/serial/by-path/platform-xhci-hcd.0-usbv2-0:1:1.0-port0"
     frame_id: rear_gs2_l_link
     ignore_array: ""
     baudrate: 921600
@@ -87,7 +87,7 @@
 
 /akame/rear_right_gs2:
   ros__parameters:
-    port: /dev/ttyUSB0
+    port: "/dev/serial/by-path/platform-xhci-hcd.0-usbv2-0:2:1.0-port0"
     frame_id: rear_gs2_r_link
     ignore_array: ""
     baudrate: 921600
