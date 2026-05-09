@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(vive_tracker)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -std=c++17 -g)
+  add_compile_options(-Wall -Wextra -Wpedantic -std=c++17 -O3)
 endif()
 
 # !!! remove this if you are manually setting the openvr !!!
