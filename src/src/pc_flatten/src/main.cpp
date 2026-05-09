@@ -13,12 +13,16 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include <cmath>
 #include <cstdint>
+#include <climits>
 
 #include "tf2/exceptions.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_sensor_msgs/tf2_sensor_msgs.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+
+#include <Eigen/Eigen>
+#include <Eigen/Geometry>
 
 using std::placeholders::_1;
 
@@ -36,7 +40,7 @@ struct bin_entry {
    int count;
 };
 
-struct low_pass_entry {
+struct lowpass_entry {
    int threshold;
    float bin_size;
 };
@@ -62,10 +66,24 @@ public:
        * be counted as an obstacle. The bin_size is the size of each
        * bin in meters that points will be mapped into. Note that this
        * is a flattening along the z-axis, so bins are two dimensional. */
-      this->declare_parameter("low_pass","synexens_link,25,0.025,"
-                                         "single_point_link,2,0.05,");
-      std::string low_pass_str = this->get_parameter("low_pass").as_string();
-      collect_low_pass_entries(low_pass_str);
+      this->declare_parameter("lowpass","synexens_link,25,0.025,"
+                                        "single_point_link,2,0.05,");
+      std::string lowpass_str = this->get_parameter("lowpass").as_string();
+      collect_lowpass_entries(lowpass_str);
+
+      /* special parameter for controlling a culling box around a given
+       * sensor. This is useful for sensors that are picking up stuff on the robot.
+       * Format will be :
+       *    link,box_range
+       * You can specify as many multiples of two as you would like.
+       * The link identifiers the sensor input to target and the box_range
+       * defines a value in meters that is the 'radius' of the box in all
+       * directions. If a raw (untransformed) point has all of its x,y,z values
+       * inside of this box it will be culled.                                 */
+      this->declare_parameter("inner_box","synexens_link,0.2,"
+                                          "single_point_link,0.1,");
+      std::string inner_box_str = this->get_parameter("inner_box").as_string();
+      collect_inner_box_entries(inner_box_str);
 
       /* reference frame to publish in */
       this->declare_parameter("frame_out","map");
@@ -111,6 +129,10 @@ public:
       this->declare_parameter("debug_lowpass_out","/lowpass_rejected");
       debug_lowpass_out = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             this->get_parameter("debug_lowpass_out").as_string(), 10);
+
+      this->declare_parameter("debug_box_out","/box_rejected");
+      debug_box_out = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+            this->get_parameter("debug_box_out").as_string(), 10);
    }
 
 private:
@@ -123,6 +145,7 @@ private:
 
    std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> debug_out;
    std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> debug_lowpass_out;
+   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> debug_box_out;
 
    std::shared_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
    std::unique_ptr<tf2_ros::Buffer> tf_buffer;
@@ -131,9 +154,10 @@ private:
    std::string frame_out;
    bool debug_mode;
 
-   std::unordered_map<std::string,low_pass_entry> filters;
+   std::unordered_map<std::string,lowpass_entry> filters;
+   std::unordered_map<std::string,float> boxes;
 
-   void collect_low_pass_entries(std::string & params) {
+   void collect_lowpass_entries(std::string & params) {
 
       auto splits = split(params,",");
       for (size_t i = 0; i+2 < splits.size(); i += 3) {
@@ -148,11 +172,27 @@ private:
          RCLCPP_INFO(this->get_logger(),"setting filter for %s: bin_size: %f, threshold: %d",
                      link.c_str(),bin_size,threshold);
 
-         filters[link] = low_pass_entry{
+         filters[link] = lowpass_entry{
             threshold, bin_size
          };
       }
+   }
 
+   void collect_inner_box_entries(std::string & params) {
+
+      auto splits = split(params,",");
+      for (size_t i = 0; i+1 < splits.size(); i += 2) {
+
+         std::string link = splits[i];
+         std::string box_size_str = splits[i+1];
+
+         float box_size = (float)strtod(box_size_str.c_str(),NULL);
+
+         RCLCPP_INFO(this->get_logger(),"setting box for %s: %f",
+                     link.c_str(),box_size);
+
+         boxes[link] = box_size;
+      }
    }
 
    float get_value(int size, uint64_t data) {
@@ -228,7 +268,7 @@ private:
       }
    }
 
-   void pc_to_ls(const sensor_msgs::msg::LaserScan & msg,
+   void ls_to_pc(const sensor_msgs::msg::LaserScan & msg,
                  sensor_msgs::msg::PointCloud2 & cloud) {
 
       cloud.header = msg.header;
@@ -284,30 +324,19 @@ private:
       cloud.width = count;
    }
 
-   int transform_cloud(const sensor_msgs::msg::PointCloud2 & in,
-                       sensor_msgs::msg::PointCloud2 & out) {
-
+   int collect_transform(const sensor_msgs::msg::PointCloud2 & in, 
+                         geometry_msgs::msg::TransformStamped & t) {
       std::string frame_id = in.header.frame_id;
 
-      out.header = in.header;
-      out.header.frame_id = frame_out;
-
-      geometry_msgs::msg::TransformStamped to_frame_out;
-
-      /* TODO(*): verify that this will not cause ghost obstacles to occur */
       try {
-         to_frame_out = tf_buffer->lookupTransform(
-                                 frame_out, frame_id,
-                                 tf2::TimePointZero);
+         t = tf_buffer->lookupTransform(
+               frame_out,frame_id,tf2::TimePointZero);
       } catch (const tf2::TransformException & ex) {
          RCLCPP_WARN(
             this->get_logger(), "Could not transform %s to %s: %s",
             frame_out.c_str(), frame_id.c_str(), ex.what());
-            return 1;
+         return 1;
       }
-
-      /* transform the point cloud into the global reference frame */
-      tf2::doTransform<sensor_msgs::msg::PointCloud2>(in,out,to_frame_out);
 
       return 0;
    }
@@ -391,7 +420,7 @@ private:
       }
    }
 
-   void lowpass(const low_pass_entry & filter,
+   void lowpass(const lowpass_entry & filter,
                 const std::vector<point_data> & in,
                 std::vector<point_data> & out) {
       out.reserve(in.size());
@@ -418,7 +447,7 @@ private:
       }
    }
 
-   void lowpass_debug(const low_pass_entry & filter,
+   void lowpass_debug(const lowpass_entry & filter,
                       const std::vector<point_data> & in,
                       std::vector<point_data> & out,
                       std::vector<point_data> & reject) {
@@ -449,67 +478,172 @@ private:
       }
    }
 
-   void process_cloud(const sensor_msgs::msg::PointCloud2 & msg) {
-   
-      sensor_msgs::msg::PointCloud2 transformed;
+   void transform_and_box_filter(const sensor_msgs::msg::PointCloud2 & msg,
+                                 const std::vector<point_data> & in,
+                                 std::vector<point_data> & out,
+                                 const geometry_msgs::msg::TransformStamped & tf) {
+
+      auto translation = Eigen::Translation3f(
+         static_cast<float>(tf.transform.translation.x),
+         static_cast<float>(tf.transform.translation.y),
+         static_cast<float>(tf.transform.translation.z));
+      auto quaternion = Eigen::Quaternion<float>(
+         static_cast<float>(tf.transform.rotation.w),
+         static_cast<float>(tf.transform.rotation.x),
+         static_cast<float>(tf.transform.rotation.y),
+         static_cast<float>(tf.transform.rotation.z));
+
+      Eigen::Transform<float, 3, Eigen::Affine> t = translation * quaternion;
+
+      double box_size = 0.0;
+      if (boxes.count(msg.header.frame_id))
+         box_size = boxes[msg.header.frame_id];
+
+      point_data * pos = (point_data *)in.data();
+      point_data * end = (point_data *)in.data() + in.size();
+      for (; pos < end; pos += 1) {
+
+         if (std::fabs(pos->x) < box_size && 
+             std::fabs(pos->y) < box_size && 
+             std::fabs(pos->z) < box_size)
+            continue;
+
+         Eigen::Vector3f point = t * Eigen::Vector3f(pos->x,pos->y,pos->z);
+
+         out.push_back(point_data{point.x(),point.y(),point.z()});
+      }
+   }
+
+   void transform_and_box_filter_debug(const sensor_msgs::msg::PointCloud2 & msg,
+                                       const std::vector<point_data> & in,
+                                       std::vector<point_data> & out,
+                                       std::vector<point_data> & rejected,
+                                       const geometry_msgs::msg::TransformStamped & tf) {
+
+      auto translation = Eigen::Translation3f(
+         static_cast<float>(tf.transform.translation.x),
+         static_cast<float>(tf.transform.translation.y),
+         static_cast<float>(tf.transform.translation.z));
+      auto quaternion = Eigen::Quaternion<float>(
+         static_cast<float>(tf.transform.rotation.w),
+         static_cast<float>(tf.transform.rotation.x),
+         static_cast<float>(tf.transform.rotation.y),
+         static_cast<float>(tf.transform.rotation.z));
+
+      Eigen::Transform<float, 3, Eigen::Affine> t = translation * quaternion;
+
+      double box_size = 0.0;
+      if (boxes.count(msg.header.frame_id))
+         box_size = boxes[msg.header.frame_id];
+
+      point_data * pos = (point_data *)in.data();
+      point_data * end = (point_data *)in.data() + in.size();
+      for (; pos < end; pos += 1) {
+
+         Eigen::Vector3f point = t * Eigen::Vector3f(pos->x,pos->y,pos->z);
+
+         if (std::fabs(pos->x) < box_size && 
+             std::fabs(pos->y) < box_size && 
+             std::fabs(pos->z) < box_size) {
+            rejected.push_back(point_data{point.x(),point.y(),point.z()});
+            continue;
+         }
+
+         out.push_back(point_data{point.x(),point.y(),point.z()});
+      }
+   }
+
+   void process_cloud_normal(const sensor_msgs::msg::PointCloud2 & msg) {
+
       sensor_msgs::msg::PointCloud2 cloud;
+      geometry_msgs::msg::TransformStamped transform;
+
       std::vector<point_data> points;
+      std::vector<point_data> outside_box;
       std::vector<point_data> survivors;
 
-      if (transform_cloud(msg,transformed))
+      if (collect_transform(msg,transform))
          return;
 
-      collect_points(transformed,points);
+      collect_points(msg,points);
 
-      if (debug_mode) {
-         std::vector<point_data> rejected;
-         sensor_msgs::msg::PointCloud2 rejected_cloud;
+      transform_and_box_filter(msg,points,outside_box,transform);
 
-         cull_points_debug(points,survivors,rejected);
+      cull_points(outside_box,survivors);
 
+      if (filters.count(msg.header.frame_id)) {
+         std::vector<point_data> passed;
 
-         if (filters.count(msg.header.frame_id)) {
+         lowpass(filters[msg.header.frame_id],survivors,passed);
 
-            sensor_msgs::msg::PointCloud2 failed_cloud;
-            std::vector<point_data> passed;
-            std::vector<point_data> failed;
-
-            lowpass_debug(filters[msg.header.frame_id],
-                          survivors,passed,failed);
-
-            points_to_cloud(passed,cloud);
-            points_to_cloud(failed,failed_cloud);
-
-            failed_cloud.header = transformed.header;
-            debug_lowpass_out->publish(failed_cloud);
-         }
-         else {
-            points_to_cloud(survivors,cloud);
-         }
-
-         points_to_cloud(rejected,rejected_cloud);
-         cloud.header = transformed.header;
-         rejected_cloud.header = transformed.header;
-
-         cloud_out->publish(cloud);
-         debug_out->publish(rejected_cloud);
+         points_to_cloud(passed,cloud);
       }
       else {
-         cull_points(points,survivors);
+         points_to_cloud(survivors,cloud);
+      }
+      cloud.header = transform.header;
 
-         if (filters.count(msg.header.frame_id)) {
-            std::vector<point_data> passed;
+      cloud_out->publish(cloud);
+   }
 
-            lowpass(filters[msg.header.frame_id],survivors,passed);
+   void process_cloud_debug(const sensor_msgs::msg::PointCloud2 & msg) {
 
-            points_to_cloud(passed,cloud);
-         }
-         else {
-            points_to_cloud(survivors,cloud);
-         }
-         cloud.header = transformed.header;
+      sensor_msgs::msg::PointCloud2 cloud;
+      sensor_msgs::msg::PointCloud2 rejected_cloud;
+      sensor_msgs::msg::PointCloud2 inside_cloud;
+      geometry_msgs::msg::TransformStamped transform;
 
-         cloud_out->publish(cloud);
+      std::vector<point_data> points;
+      std::vector<point_data> outside_box;
+      std::vector<point_data> inside_box;
+      std::vector<point_data> survivors;
+      std::vector<point_data> rejected;
+
+      if (collect_transform(msg,transform))
+         return;
+
+      collect_points(msg,points);
+
+      transform_and_box_filter_debug(msg,points,outside_box,inside_box,transform);
+      points_to_cloud(inside_box,inside_cloud);
+      inside_cloud.header = transform.header;
+      debug_box_out->publish(inside_cloud);
+
+      cull_points_debug(outside_box,survivors,rejected);
+
+      if (filters.count(msg.header.frame_id)) {
+
+         sensor_msgs::msg::PointCloud2 failed_cloud;
+         std::vector<point_data> passed;
+         std::vector<point_data> failed;
+
+         lowpass_debug(filters[msg.header.frame_id],
+                       survivors,passed,failed);
+
+         points_to_cloud(passed,cloud);
+         points_to_cloud(failed,failed_cloud);
+
+         failed_cloud.header = transform.header;
+         debug_lowpass_out->publish(failed_cloud);
+      }
+      else {
+         points_to_cloud(survivors,cloud);
+      }
+
+      points_to_cloud(rejected,rejected_cloud);
+      cloud.header = transform.header;
+      rejected_cloud.header = transform.header;
+
+      cloud_out->publish(cloud);
+      debug_out->publish(rejected_cloud);
+   }
+
+   void process_cloud(const sensor_msgs::msg::PointCloud2 & msg) {
+      if (debug_mode) {
+         process_cloud_debug(msg);
+      }
+      else {
+         process_cloud_normal(msg);
       }
    }
 
@@ -517,7 +651,7 @@ private:
 
       sensor_msgs::msg::PointCloud2 start;
 
-      pc_to_ls(msg,start);
+      ls_to_pc(msg,start);
 
       process_cloud(start);
    }

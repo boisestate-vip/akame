@@ -14,8 +14,10 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
+find_package(Eigen3 3.3 REQUIRED)
+
 add_executable(pc_flatten src/main.cpp)
-target_link_libraries(pc_flatten m)
+target_link_libraries(pc_flatten m Eigen3::Eigen)
 ament_target_dependencies(pc_flatten rclcpp tf2 tf2_ros tf2_sensor_msgs sensor_msgs geometry_msgs tf2_geometry_msgs)
 
 install(TARGETS pc_flatten
