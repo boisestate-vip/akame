@@ -1,0 +1,115 @@
+/akame/front_left_gs5:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    frame_id: front_gs5_l_link
+    ignore_array: ""
+    baudrate: 921600
+    lidar_type: 3
+    device_type: 0
+    isSingleChannel: false
+    intensity: false
+    intensity_bit: 0
+    m1_mode: 0
+    m2_mode: 0
+    m3_mode: 0
+    sample_rate: 9
+    abnormal_check_count: 4
+    fixed_resolution: true
+    reversion: false
+    inverted: false
+    auto_reconnect: true
+    support_motor_dtr: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 1.0
+    range_min: 0.025
+    frequency: 10.0
+    invalid_range_is_inf: false
+    debug: false
+
+/akame/front_right_gs5:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    frame_id: front_gs5_r_link
+    ignore_array: ""
+    baudrate: 921600
+    lidar_type: 3
+    device_type: 0
+    isSingleChannel: false
+    intensity: false
+    intensity_bit: 0
+    m1_mode: 0
+    m2_mode: 0
+    m3_mode: 0
+    sample_rate: 9
+    abnormal_check_count: 4
+    fixed_resolution: true
+    reversion: false
+    inverted: false
+    auto_reconnect: true
+    support_motor_dtr: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 1.0
+    range_min: 0.025
+    frequency: 10.0
+    invalid_range_is_inf: false
+    debug: false
+
+/akame/rear_left_gs2:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    frame_id: rear_gs2_l_link
+    ignore_array: ""
+    baudrate: 921600
+    lidar_type: 3
+    device_type: 0
+    isSingleChannel: false
+    intensity: false
+    intensity_bit: 0
+    m1_mode: 0
+    m2_mode: 0
+    m3_mode: 0
+    sample_rate: 9
+    abnormal_check_count: 4
+    fixed_resolution: true
+    reversion: false
+    inverted: false
+    auto_reconnect: true
+    support_motor_dtr: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 1.0
+    range_min: 0.025
+    frequency: 10.0
+    invalid_range_is_inf: false
+    debug: false
+
+/akame/rear_right_gs2:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    frame_id: rear_gs2_r_link
+    ignore_array: ""
+    baudrate: 921600
+    lidar_type: 3
+    device_type: 0
+    isSingleChannel: false
+    intensity: false
+    intensity_bit: 0
+    m1_mode: 0
+    m2_mode: 0
+    m3_mode: 0
+    sample_rate: 9
+    abnormal_check_count: 4
+    fixed_resolution: true
+    reversion: false
+    inverted: false
+    auto_reconnect: true
+    support_motor_dtr: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 1.0
+    range_min: 0.025
+    frequency: 10.0
+    invalid_range_is_inf: false
+    debug: false
