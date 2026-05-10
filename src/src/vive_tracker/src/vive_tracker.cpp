@@ -30,6 +30,8 @@
  * for steam are used, the paths in the launch file may have to be edited
  */
 
+#define POSE_MULTIPLIER 0.1
+
 using std::placeholders::_1;
 
 class OpenVRTrackerNode : public rclcpp::Node {
@@ -190,9 +192,9 @@ retry:
                    * column, and our rotation can be recovered from the
                    * rotation matrix in the upper left 3x3 area        */
                   double tx, ty, tz, qx, qy, qz, qw;
-                  tx = vive_pose.m[0][3];
-                  ty = vive_pose.m[1][3];
-                  tz = vive_pose.m[2][3];
+                  tx = POSE_MULTIPLIER * vive_pose.m[0][3];
+                  ty = POSE_MULTIPLIER * vive_pose.m[1][3];
+                  tz = POSE_MULTIPLIER * vive_pose.m[2][3];
 
                   /* convert from rotation matrix to quaternion */
                   double trace = vive_pose.m[0][0] + vive_pose.m[1][1] + vive_pose.m[2][2];
@@ -334,9 +336,9 @@ retry:
                if (trackedDevicePose.bPoseIsValid) {
 
                   double tx, ty, tz, qx, qy, qz, qw;
-                  tx = vive_pose.m[0][3];
-                  ty = vive_pose.m[1][3];
-                  tz = vive_pose.m[2][3];
+                  tx = POSE_MULTIPLIER * vive_pose.m[0][3];
+                  ty = POSE_MULTIPLIER * vive_pose.m[1][3];
+                  tz = POSE_MULTIPLIER * vive_pose.m[2][3];
 
                   /* convert from rotation matrix to quaternion */
                   double trace = vive_pose.m[0][0] + vive_pose.m[1][1] + vive_pose.m[2][2];
