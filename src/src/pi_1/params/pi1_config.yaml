@@ -113,3 +113,18 @@
     range_min: 0.025
     invalid_range_is_inf: false
     debug: false
+
+/akame/simple_map:
+  ros__parameters:
+    map_out: "map"
+    map_publish_interval: 0.25
+    publish_map_frame: true
+    frame_publish_interval: 0.005
+    pos_in: "odom"
+    points_in: "flattend"
+    scan_in: "scan_flattend"
+    reset_in: "simple_map/reset"
+    map_resolution: 0.1
+    map_hit_weight: 40
+    map_miss_weight: 10
+    map_start_weight: 50

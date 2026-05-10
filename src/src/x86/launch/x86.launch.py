@@ -39,6 +39,16 @@ def generate_launch_description():
         output='screen',
     )
 
+    # the odom -> base_link publisher
+    base_link_node = launch_ros.actions.Node(
+        package='vive_to_odom',
+        executable='vive_to_odom',
+        namespace='akame',
+        name='vive_to_odom',
+        parameters=[config],
+        output='screen',
+    )
+
     # command that will launch steam vr for us
     # note you may have to edit this path if the position of the steam
     # directory is different on your system. The command (for linux) should
@@ -70,6 +80,7 @@ def generate_launch_description():
         steam_vr_process,
         steam_vr_streamline,
         vive_tracker_node,
+        base_link_node,
 
         # execute our kill_steam_vr command on shutdown (CTRL-C)
         launch.actions.RegisterEventHandler(

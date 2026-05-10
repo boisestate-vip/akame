@@ -55,6 +55,15 @@ def generate_launch_description():
                                    parameters=[parameter_file],
                                    namespace='akame',
                                   )
+    simple_map = launch_ros.actions.Node(
+       package='simple_map',
+       executable='simple_map',
+       name='simple_map',
+       output='screen',
+       emulate_tty=True,
+       parameters=[parameter_file],
+       namespace='akame',
+    )
 
     return LaunchDescription([
         params_declare,
@@ -62,4 +71,5 @@ def generate_launch_description():
         #front_right_gs5,
         rear_left_gs2,
         rear_right_gs2,
+        simple_map,
     ])

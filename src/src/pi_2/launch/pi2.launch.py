@@ -69,6 +69,16 @@ def generate_launch_description():
             output='screen',
     )
 
+    pc_flatten_node = launch_ros.actions.Node(
+            package='pc_flatten',
+            executable='pc_flatten',
+            parameters=[parameter_file],
+            name='pc_flatten',
+            namespace='akame',
+            output='screen',
+    )
+
+
     urdf_package = FindPackageShare(package='bender_5_urdf').find('bender_5_urdf')
     default_urdf_model_path = os.path.join(urdf_package, 'src', 'bender_5.urdf')
 
@@ -90,7 +100,8 @@ def generate_launch_description():
         joint_state_publisher_node,
         robot_state_publisher_node,
         synexens_node,
-        roboclaw_node,
-        tracks_node,
-        drum_node,
+        #roboclaw_node,
+        #tracks_node,
+        #drum_node,
+        pc_flatten_node,
     ])
