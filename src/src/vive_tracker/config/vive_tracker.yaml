@@ -5,3 +5,5 @@
     visual_topic: "visual"
     visualization: true
     poll_delay: 25
+    zero_on_init: true
+    zero_topic: "vive/zero"
