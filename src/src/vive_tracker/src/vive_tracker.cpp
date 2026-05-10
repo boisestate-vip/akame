@@ -72,7 +72,7 @@ public:
             this->get_parameter("topic").as_string(), 10);
 
       zero_in = this->create_subscription<std_msgs::msg::Empty>(
-            this->get_parameter("zero_in").as_string(), 10,
+            this->get_parameter("zero_init").as_string(), 10,
             std::bind(&OpenVRTrackerNode::collect_zero, this, _1));
 
       /* welcome the user. We are all nice here */
