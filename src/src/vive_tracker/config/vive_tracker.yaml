@@ -1,7 +1,7 @@
 /vive_tracker/vive_tracker:
   ros__parameters:
     topic: "odom"
-    frame_id: "tracker_link"
+    frame_id: "vive_link"
     visual_topic: "visual"
     visualization: true
     poll_delay: 25

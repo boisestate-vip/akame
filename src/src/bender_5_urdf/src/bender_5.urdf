@@ -155,7 +155,7 @@
   <joint name="vive_joint" type="fixed">
      <parent link="base_link"/>
      <child link="vive_link"/>
-     <origin xyz="${-vive_xoff} ${vive_yoff} ${chassis_height/2.0}" rpy="0 0 0"/>
+     <origin xyz="${-vive_xoff} ${vive_yoff} ${chassis_height/2.0}" rpy="0 0 ${-pi/2}"/>
      <axis xyz="0 1 0"/>
   </joint>
 

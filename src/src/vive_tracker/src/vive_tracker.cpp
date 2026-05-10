@@ -196,6 +196,9 @@ retry:
                   ty = POSE_MULTIPLIER * vive_pose.m[1][3];
                   tz = POSE_MULTIPLIER * vive_pose.m[2][3];
 
+                  vive_pose.m[1][1] *= -1;
+                  vive_pose.m[2][2] *= -1;
+
                   /* convert from rotation matrix to quaternion */
                   double trace = vive_pose.m[0][0] + vive_pose.m[1][1] + vive_pose.m[2][2];
                   if (trace > 0.0) {
@@ -339,6 +342,9 @@ retry:
                   tx = POSE_MULTIPLIER * vive_pose.m[0][3];
                   ty = POSE_MULTIPLIER * vive_pose.m[1][3];
                   tz = POSE_MULTIPLIER * vive_pose.m[2][3];
+
+                  vive_pose.m[1][1] *= -1;
+                  vive_pose.m[2][2] *= -1;
 
                   /* convert from rotation matrix to quaternion */
                   double trace = vive_pose.m[0][0] + vive_pose.m[1][1] + vive_pose.m[2][2];
