@@ -46,7 +46,7 @@
   </link>
 
   <!-- Rear GS2 Lidar -->
-  <xacro:macro name="rear_gs2" params="prefix y_reflect dir">
+  <xacro:macro name="rear_gs2" params="prefix y_reflect">
      <link name="${prefix}_link">
         <visual>
            <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -62,13 +62,13 @@
      <joint name="${prefix}_joint" type="fixed">
         <parent link="base_link"/>
         <child link="${prefix}_link"/>
-        <origin xyz="${-rear_gs2_xoff} ${y_reflect*rear_gs2_yoff} ${rear_gs2_height-chassis_zoff}" rpy="0 0 ${dir*pi}"/>
+        <origin xyz="${-rear_gs2_xoff} ${y_reflect*rear_gs2_yoff} ${rear_gs2_height-chassis_zoff}" rpy="0 0 ${y_reflect*(pi/2)}"/>
         <axis xyz="0 1 0"/>
      </joint>
   </xacro:macro>
 
   <!-- Front GS5 Lidar -->
-  <xacro:macro name="front_gs5" params="prefix y_reflect dir">
+  <xacro:macro name="front_gs5" params="prefix y_reflect">
      <link name="${prefix}_link">
         <visual>
            <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -84,7 +84,7 @@
      <joint name="${prefix}_joint" type="fixed">
         <parent link="base_link"/>
         <child link="${prefix}_link"/>
-        <origin xyz="${front_gs5_xoff} ${y_reflect*front_gs5_yoff} ${front_gs5_height-chassis_zoff}" rpy="0 0 ${dir*pi}"/>
+        <origin xyz="${front_gs5_xoff} ${y_reflect*front_gs5_yoff} ${front_gs5_height-chassis_zoff}" rpy="0 0 ${y_reflect*(pi/2)}"/>
         <axis xyz="0 1 0"/>
      </joint>
   </xacro:macro>
@@ -135,7 +135,7 @@
   <joint name="synexens_joint" type="fixed">
      <parent link="base_link"/>
      <child link="synexens_link"/>
-     <origin xyz="${synexens_xoff} ${-synexens_yoff} ${synexens_height-chassis_zoff}" rpy="0 0 0"/>
+     <origin xyz="${synexens_xoff} ${-synexens_yoff} ${synexens_height-chassis_zoff}" rpy="-1.63 0 ${-pi/2}"/>
      <axis xyz="0 1 0"/>
   </joint>
 
@@ -181,9 +181,9 @@
 
   <xacro:track prefix="track_l" y_reflect="1"/>
   <xacro:track prefix="track_r" y_reflect="-1"/>
-  <xacro:rear_gs2 prefix="rear_gs2_l" y_reflect="1" dir="0"/>
-  <xacro:rear_gs2 prefix="rear_gs2_r" y_reflect="-1" dir="1"/>
-  <xacro:front_gs5 prefix="front_gs5_l" y_reflect="1" dir="0"/>
-  <xacro:front_gs5 prefix="front_gs5_r" y_reflect="-1" dir="1"/>
+  <xacro:rear_gs2 prefix="rear_gs2_l" y_reflect="1"/>
+  <xacro:rear_gs2 prefix="rear_gs2_r" y_reflect="-1"/>
+  <xacro:front_gs5 prefix="front_gs5_l" y_reflect="1"/>
+  <xacro:front_gs5 prefix="front_gs5_r" y_reflect="-1"/>
 
 </robot>

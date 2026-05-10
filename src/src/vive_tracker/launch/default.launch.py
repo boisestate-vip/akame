@@ -7,9 +7,9 @@ import os
 import sys
 import subprocess
 
-# default launch file for the openvr tracker ros node. This
+# default launch file for the vive tracker ros node. This
 # file should not be modified if the user wants different
-# behavior, they should edit the openvr_tracker_node.yaml file 
+# behavior, they should edit the vive_tracker.yaml file 
 # instead.
 
 # reference files
@@ -22,17 +22,17 @@ def generate_launch_description():
 
     # get the config file
     config = os.path.join(
-        get_package_share_directory('openvr_tracker_node'),
+        get_package_share_directory('vive_tracker'),
         'config',
-        'openvr_tracker_node.yaml'
+        'vive_tracker.yaml'
     )
 
     # the openvr node
-    openvr_tracker_node = launch_ros.actions.Node(
-        package='openvr_tracker_node',
-        executable='openvr_tracker_node',
-        namespace='openvr_tracker',
-        name='openvr_tracker',
+    vive_tracker_node = launch_ros.actions.Node(
+        package='vive_tracker',
+        executable='vive_tracker',
+        namespace='vive_tracker',
+        name='vive_tracker',
         parameters=[config]
     )
 
@@ -66,7 +66,7 @@ def generate_launch_description():
     return launch.LaunchDescription([
         steam_vr_process,
         steam_vr_streamline,
-        openvr_tracker_node,
+        vive_tracker_node,
 
         # execute our kill_steam_vr command on shutdown (CTRL-C)
         launch.actions.RegisterEventHandler(

@@ -1,4 +1,4 @@
-/openvr_tracker/openvr_tracker:
+/vive_tracker/vive_tracker:
   ros__parameters:
     topic: "odom"
     frame_id: "tracker_link"

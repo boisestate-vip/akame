@@ -30,11 +30,11 @@ def generate_launch_description():
     )
 
     # the openvr node
-    openvr_tracker_node = launch_ros.actions.Node(
-        package='openvr_tracker_node',
-        executable='openvr_tracker_node',
-        namespace='akame',
-        name='openvr_tracker',
+    vive_tracker_node = launch_ros.actions.Node(
+        package='vive_tracker',
+        executable='vive_tracker',
+        namespace='vive_tracker',
+        name='vive_tracker',
         parameters=[config],
         output='screen',
     )
@@ -69,7 +69,7 @@ def generate_launch_description():
     return launch.LaunchDescription([
         steam_vr_process,
         steam_vr_streamline,
-        openvr_tracker_node,
+        vive_tracker_node,
 
         # execute our kill_steam_vr command on shutdown (CTRL-C)
         launch.actions.RegisterEventHandler(
