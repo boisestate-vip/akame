@@ -1,7 +1,7 @@
-/akame/openvr_tracker:
+/akame/vive_tracker:
   ros__parameters:
     topic: "openvr_tracker/odom"
-    frame_id: vive_link
+    frame_id: "vive_link"
     visual_topic: openvr_tracker/visual
     visualization: true
     poll_delay: 50

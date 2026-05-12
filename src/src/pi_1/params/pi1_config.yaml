@@ -121,7 +121,7 @@
     publish_map_frame: true
     frame_publish_interval: 0.005
     pos_in: "odom"
-    points_in: "flattend"
+    points_in: "flattened"
     scan_in: "scan_flattend"
     reset_in: "simple_map/reset"
     map_resolution: 0.1

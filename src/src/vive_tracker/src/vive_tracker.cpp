@@ -42,7 +42,7 @@ public:
       /* the topic to publish odometry on */
       this->declare_parameter("topic","openvr_tracker/odom");
       /* the frame to publish the message under */
-      this->declare_parameter("frame_id","tracker_link");
+      this->declare_parameter("frame_id","vive_link");
       /* the topic to publish visualization output on. This
        * topic will only be active if visualization is set
        * to true */

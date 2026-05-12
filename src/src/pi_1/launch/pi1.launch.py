@@ -55,7 +55,7 @@ def generate_launch_description():
                                    parameters=[parameter_file],
                                    namespace='akame',
                                   )
-    simple_map = launch_ros.actions.Node(
+    simple_map = Node(
        package='simple_map',
        executable='simple_map',
        name='simple_map',

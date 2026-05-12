@@ -25,7 +25,7 @@ def generate_launch_description():
     # get the config file
     config = os.path.join(
         get_package_share_directory('x86'),
-        'config',
+        'params',
         'x86_config.yaml'
     )
 
@@ -33,7 +33,7 @@ def generate_launch_description():
     vive_tracker_node = launch_ros.actions.Node(
         package='vive_tracker',
         executable='vive_tracker',
-        namespace='vive_tracker',
+        namespace='akame',
         name='vive_tracker',
         parameters=[config],
         output='screen',
