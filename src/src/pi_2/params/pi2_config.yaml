@@ -43,10 +43,10 @@
     cloud_in: "points"
     scan_in: "scan"
     lowpass: "synexens_link,25,0.025,"
-    inner_box: "synexens_link,0.25,"
+    inner_box: "synexens_link,0.35,"
     frame_out: "base_link"
     obs_threshold_low:  -10.0
-    obs_threshold_high:   0.060
+    obs_threshold_high:   0.1
     obs_ceiling:   0.4
     debug: false
     debug_out: "/flattened_rejected"
