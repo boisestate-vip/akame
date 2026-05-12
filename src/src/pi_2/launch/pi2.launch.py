@@ -100,8 +100,8 @@ def generate_launch_description():
         joint_state_publisher_node,
         robot_state_publisher_node,
         synexens_node,
-        #roboclaw_node,
-        #tracks_node,
-        #drum_node,
+        roboclaw_node,
+        tracks_node,
+        drum_node,
         pc_flatten_node,
     ])

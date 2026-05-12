@@ -46,7 +46,7 @@
     inner_box: "synexens_link,0.25,"
     frame_out: "base_link"
     obs_threshold_low:  -10.0
-    obs_threshold_high:   0.075
+    obs_threshold_high:   0.060
     obs_ceiling:   0.4
     debug: false
     debug_out: "/flattened_rejected"
