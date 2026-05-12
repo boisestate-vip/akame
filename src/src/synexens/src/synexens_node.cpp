@@ -237,7 +237,7 @@ public:
       this->declare_parameter("poll_delay",10);
 
       /* the topic to publish point cloud data on */
-      this->declare_parameter("cloud_out","points");
+      this->declare_parameter("cloud_out","/akame/points");
 
       /* the frame id to publish the point cloud data from */
       this->declare_parameter("frame_id","synexens_link");

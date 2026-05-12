@@ -51,11 +51,11 @@ public:
    PcFlatten(): Node("pc_flatten") {
 
       /* everything is output as a point cloud */
-      this->declare_parameter("cloud_out","flattened");
+      this->declare_parameter("cloud_out","/akame/flattened");
 
       /* inputs to flatten and cull */
-      this->declare_parameter("cloud_in","points");
-      this->declare_parameter("scan_in","scan");
+      this->declare_parameter("cloud_in","/akame/points");
+      this->declare_parameter("scan_in","/akame/scan");
 
       /* special parameter for controlling a low pass filter over
        * sensor input. Format will be:
@@ -66,7 +66,7 @@ public:
        * be counted as an obstacle. The bin_size is the size of each
        * bin in meters that points will be mapped into. Note that this
        * is a flattening along the z-axis, so bins are two dimensional. */
-      this->declare_parameter("lowpass","synexens_link,25,0.025,"
+      this->declare_parameter("lowpass","synexens_link,35,0.025,"
                                         "single_point_link,2,0.05,");
       std::string lowpass_str = this->get_parameter("lowpass").as_string();
       collect_lowpass_entries(lowpass_str);
@@ -107,7 +107,7 @@ public:
       /* any points between the obs_threshold_low and
        * obj_threshold_high will be culled.           */
       this->declare_parameter("obs_threshold_low", -10.0);
-      this->declare_parameter("obs_threshold_high",  0.1);
+      this->declare_parameter("obs_threshold_high",  0.2);
       obs_threshold_low = this->get_parameter("obs_threshold_low").as_double();
       obs_threshold_high = this->get_parameter("obs_threshold_high").as_double();
       

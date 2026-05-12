@@ -232,8 +232,9 @@ retry:
 
                   auto transform = tf2::Transform(tf2::Quaternion(qx,qy,qz,qw),tf2::Vector3(tx,ty,tz));
 
-                  if (first_time) {
+                  if (first_time) { /* please be gentle */
                      zero_transform = transform.inverse();
+                     zero_transform.setRotation(tf2::Quaternion(0,0,0,1));
                      first_time = 0;
                   }
                   else {
@@ -379,8 +380,9 @@ retry:
 
                   auto transform = tf2::Transform(tf2::Quaternion(qx,qy,qz,qw),tf2::Vector3(tx,ty,tz));
 
-                  if (first_time) {
+                  if (first_time) { /* please be gentle */
                      zero_transform = transform.inverse();
+                     zero_transform.setRotation(tf2::Quaternion(0,0,0,1));
                      first_time = 0;
                   }
                   else {
