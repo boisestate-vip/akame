@@ -80,13 +80,13 @@ public:
        * defines a value in meters that is the 'radius' of the box in all
        * directions. If a raw (untransformed) point has all of its x,y,z values
        * inside of this box it will be culled.                                 */
-      this->declare_parameter("inner_box","synexens_link,0.2,"
+      this->declare_parameter("inner_box","synexens_link,1.0,"
                                           "single_point_link,0.1,");
       std::string inner_box_str = this->get_parameter("inner_box").as_string();
       collect_inner_box_entries(inner_box_str);
 
       /* reference frame to publish in */
-      this->declare_parameter("frame_out","base_link");
+      this->declare_parameter("frame_out","map");
       frame_out = this->get_parameter("frame_out").as_string();
 
       cloud_out = this->create_publisher<sensor_msgs::msg::PointCloud2>(

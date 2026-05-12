@@ -31,12 +31,12 @@ public:
 
       if (p.x > xmax)
          xmax = p.x;
-      else if (p.x < xmin)
+      if (p.x < xmin)
          xmin = p.x;
 
       if (p.y > ymax)
          ymax = p.y;
-      else if (p.y < ymin)
+      if (p.y < ymin)
          ymin = p.y;
 
       points.push_back(p);

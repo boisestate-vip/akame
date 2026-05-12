@@ -111,8 +111,7 @@ public:
 
          if (yhigh_i > 0)
             new_ylen += yhigh_i;
-
-
+         
          /* allocate our new map */
          int32_t new_map_size = sizeof(uint8_t)*new_xlen*new_ylen;
          uint8_t * new_map = (uint8_t *)malloc(new_map_size);
@@ -187,6 +186,9 @@ public:
    }
 
    void add_points(Points & p) {
+      if (p.points.size() == 0)
+         return;
+
       this->grow_to(p.xmin,p.ymin,p.xmax,p.ymax);
 
       /* iterate over the vector using the underlying pointer.

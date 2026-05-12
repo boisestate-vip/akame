@@ -225,7 +225,7 @@ public:
       /* topic to listen for source-of-truth odometry on */
       this->declare_parameter("pos_in","/demo/odom");
       /* topic to listen for incoming point cloud data on */
-      this->declare_parameter("points_in","/points");
+      this->declare_parameter("points_in","/flattened");
       /* topic to listen for incoming lidar data on */
       this->declare_parameter("scan_in","/demo/scan");
 

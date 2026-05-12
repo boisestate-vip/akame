@@ -115,10 +115,11 @@ public:
       this->declare_parameter("internal_multiplier",0.030);
       this->declare_parameter("external_multiplier",0.060);
       this->declare_parameter("constraint_multiplier",1.2);
+      //this->declare_parameter("constraint_multiplier",0.0);
       this->declare_parameter("distance_cutoff",0.85);
       this->declare_parameter("map_height",70);
       this->declare_parameter("bin_width",0.3);
-      this->declare_parameter("max_length",3.0);
+      this->declare_parameter("max_length",20.0);
       this->declare_parameter("hit_distance",0.20);
 
       /* now instantiate our subscriptions to our information sources */
