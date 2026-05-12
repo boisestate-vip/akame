@@ -9,7 +9,7 @@
 
 /akame/roboclaw_driver:
   ros__parameters:
-    roboclaw_port: "/dev/serial/by-id/usb-Teensyduino_USB_Serial_14654310-if00"
+    roboclaw_port: "/dev/serial/by-id/usb-Basicmicro_Inc._USB_Roboclaw_Solo_30A-if00"
     baud: 34800
     cmd_vel_in: /roboclaw_vel
     cmd_pos_in: /roboclaw_pos
