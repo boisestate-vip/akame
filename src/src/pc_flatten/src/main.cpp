@@ -51,11 +51,11 @@ public:
    PcFlatten(): Node("pc_flatten") {
 
       /* everything is output as a point cloud */
-      this->declare_parameter("cloud_out","/flattened");
+      this->declare_parameter("cloud_out","flattened");
 
       /* inputs to flatten and cull */
-      this->declare_parameter("cloud_in","/points");
-      this->declare_parameter("scan_in","/scan");
+      this->declare_parameter("cloud_in","points");
+      this->declare_parameter("scan_in","scan");
 
       /* special parameter for controlling a low pass filter over
        * sensor input. Format will be:
@@ -80,7 +80,7 @@ public:
        * defines a value in meters that is the 'radius' of the box in all
        * directions. If a raw (untransformed) point has all of its x,y,z values
        * inside of this box it will be culled.                                 */
-      this->declare_parameter("inner_box","synexens_link,1.0,"
+      this->declare_parameter("inner_box","synexens_link,0.60,"
                                           "single_point_link,0.1,");
       std::string inner_box_str = this->get_parameter("inner_box").as_string();
       collect_inner_box_entries(inner_box_str);
@@ -112,7 +112,7 @@ public:
       obs_threshold_high = this->get_parameter("obs_threshold_high").as_double();
       
       /* cull obstacle points above this z value */
-      this->declare_parameter("obs_ceiling",  0.6);
+      this->declare_parameter("obs_ceiling",  0.4);
       obs_ceiling = this->get_parameter("obs_ceiling").as_double();
 
       /* whether to enter debug mode. In this mode, we publish
