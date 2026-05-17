@@ -24,12 +24,12 @@ logging.root.setLevel(logging.DEBUG)
 def generate_launch_description():
 
     # get config file
-    share_dir = get_package_share_directory('pi_2')
+    share_dir = get_package_share_directory('manual')
     parameter_file = LaunchConfiguration('params_file')
     params_declare = DeclareLaunchArgument(
             'params_file',
             default_value=os.path.join(
-                share_dir, 'params', 'pi2_config.yaml'),
+                share_dir, 'params', 'manual_config.yaml'),
             description='FPath to the ROS2 parameters file to use.'
     )
 
@@ -60,27 +60,8 @@ def generate_launch_description():
             output='screen',
     )
 
-
-    urdf_package = FindPackageShare(package='bender_5_urdf').find('bender_5_urdf')
-    default_urdf_model_path = os.path.join(urdf_package, 'src', 'bender_5.urdf')
-
-    robot_state_publisher_node = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        parameters=[{'robot_description': Command(['xacro ', LaunchConfiguration('urdf_model')])}]
-    )
-    joint_state_publisher_node = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        parameters=[{'robot_description': Command(['xacro ', default_urdf_model_path])}],
-    )
-
     return launch.LaunchDescription([
         params_declare,
-        DeclareLaunchArgument(name='urdf_model', default_value=default_urdf_model_path, description='Absolute path to robot model file'),
-        joint_state_publisher_node,
-        robot_state_publisher_node,
         roboclaw_node,
         tracks_node,
         drum_node,

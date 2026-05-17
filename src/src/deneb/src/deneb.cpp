@@ -68,10 +68,10 @@ public:
     this->declare_parameter("path_in","/path_smooth");
 
     /* topic to publish the odometry on */
-    this->declare_parameter("pos_in","/demo/odom");
+    this->declare_parameter("pos_in","/akame/odom");
 
     /* topic to publish the velocity command on */
-    this->declare_parameter("vel_out","/demo/cmd_vel");
+    this->declare_parameter("vel_out","/akame/cmd_vel");
 
     /* visualization stuff */
     this->declare_parameter("publish_visual",false);

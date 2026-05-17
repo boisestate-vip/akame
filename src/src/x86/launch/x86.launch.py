@@ -49,6 +49,26 @@ def generate_launch_description():
         output='screen',
     )
 
+    synexens_node = launch_ros.actions.Node(
+            package='synexens_lidar',
+            executable='synexens_node',
+            parameters=[parameter_file],
+            name='synexens_node',
+            namespace='akame',
+            output='screen',
+    )
+
+    pc_flatten_node = launch_ros.actions.Node(
+            package='pc_flatten',
+            executable='pc_flatten',
+            parameters=[parameter_file],
+            name='pc_flatten',
+            namespace='akame',
+            output='screen',
+    )
+
+
+
     # command that will launch steam vr for us
     # note you may have to edit this path if the position of the steam
     # directory is different on your system. The command (for linux) should
@@ -81,6 +101,8 @@ def generate_launch_description():
         steam_vr_streamline,
         vive_tracker_node,
         base_link_node,
+        pc_flatten_node,
+        synexens_node,
 
         # execute our kill_steam_vr command on shutdown (CTRL-C)
         launch.actions.RegisterEventHandler(

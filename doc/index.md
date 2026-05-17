@@ -5,7 +5,7 @@
 
  * [ros2_version_decision.md](ros2_version_decision)
  * [kurome_overview_defects.md](kurome_overview_defects)
- * [nodes](nodes_dir)
+ * [running_go_motors_via_ros_with_controller.md](running_go_motors_via_ros_with_controller)
 
 <a name="ros2_version_decision"></a>
 ## [ros2_version_decision.md](ros2_version_decision.md)
@@ -19,9 +19,8 @@ A discussion of the various algorithms used in the kurome
 navigation stack and some of the known issues that occured
 with using them.
 
-<a name="nodes_dir"></a>
-## [nodes](nodes)
+<a name="running_go_motors_via_ros_with_controller"></a>
+## [running_go_motors_via_ros_with_controller.md](running_go_motors_via_ros_with_controller.md)
 
-A directory containing documentation on expected ROS2 nodes
-that will be used in the project. Nodes in this directory
-are planned and may not be complete or may be cancelled.
+A explaination of how the unitree go motors can be ran using the
+akame nodes.

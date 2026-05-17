@@ -92,10 +92,10 @@ public:
    Vega() : Node("vega") {
 
       /* topic to publish the produced map on */
-      this->declare_parameter("map_in","/map");
+      this->declare_parameter("map_in","/akame/map");
 
       /* topic to listen for source-of-truth odometry on */
-      this->declare_parameter("pos_in","/demo/odom");
+      this->declare_parameter("pos_in","/akame/odom");
       /* topic to listen for source-of-truth odometry on */
       this->declare_parameter("goal_in","/goal_pose");
 

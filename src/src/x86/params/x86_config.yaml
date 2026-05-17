@@ -11,3 +11,28 @@
     frame_publish_interval: 0.005
     pos_in: "openvr_tracker/odom"
     pos_out: "odom"
+
+/akame/pc_flatten:
+  ros__parameters:
+    cloud_out: "flattened"
+    cloud_in: "points"
+    scan_in: "scan"
+    lowpass: "synexens_link,35,0.025,"
+    inner_box: "synexens_link,0.60,"
+    frame_out: "map"
+    obs_threshold_low:  -10.0
+    obs_threshold_high:   0.2
+    obs_ceiling:   0.4
+    debug: false
+    debug_out: "/flattened_rejected"
+    debug_lowpass_out: "/lowpass_rejected"
+    debug_box_out: "/box_rejected"
+/akame/synexens_node:
+  ros__parameters:
+    poll_delay: 50
+    cloud_out: points
+    frame_id: synexens_link
+    stream_type: depth
+    resolution: "320_240"
+    color_resolution: "320_240"
+

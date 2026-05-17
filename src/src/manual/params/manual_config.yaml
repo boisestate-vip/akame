@@ -26,5 +26,4 @@
     motor: "/dev/ttyUSB2"
     motor_id: 2
     position_damping: 0.005
-    velocity_damping: 0.1
-
+    velocity_damping: 0.01

@@ -90,17 +90,17 @@ public:
    Altair() : Node("altair") {
 
       /* topic to publish the produced map on */
-      this->declare_parameter("map_in","map");
+      this->declare_parameter("map_in","/akame/map");
 
       /* topic to listen for source-of-truth odometry on */
-      this->declare_parameter("pos_in","/demo/odom");
+      this->declare_parameter("pos_in","/akame/odom");
       /* topic to recieve the goal on */
       this->declare_parameter("goal_in","/goal_pose");
       /* topic to accept the path to smooth */
       this->declare_parameter("path_in","/path");
 
       /* topic to listen on for a reset input */
-      this->declare_parameter("reset_in","/simple_map/reset");
+      this->declare_parameter("reset_in","/altair/reset");
 
       /* topic to publish the smoothed path on */
       this->declare_parameter("path_out","/path_smooth");

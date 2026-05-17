@@ -22,3 +22,7 @@ cd ./build
 cmake ..
 make
 sudo make install
+
+cd ../..
+echo 'export OPENVR_DIRECTORY="$(pwd)/openvr"' >> ~/.bashrc
+. export OPENVR_DIRECTORY="$(pwd)/openvr"

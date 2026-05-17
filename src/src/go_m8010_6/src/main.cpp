@@ -43,7 +43,7 @@ public:
 
       /* damping values */
       this->declare_parameter("position_damping",0.005);
-      this->declare_parameter("velocity_damping",0.01);
+      this->declare_parameter("velocity_damping",0.05);
 
       /* the radius of the wheels for the differential drive calculation (meters) */
       //this->declare_parameter("wheel_radius",0.037);
@@ -162,7 +162,7 @@ private:
       cmd_l.kd = cmd_r.kd = kd;
       cmd_l.q = cmd_r.q = 0.0;
       cmd_l.dq = lwh * gearRatio;
-      cmd_r.dq = rwh * gearRatio;
+      cmd_r.dq = -rwh * gearRatio;
       cmd_l.tau = cmd_r.tau = 0.0;
 
       try {
