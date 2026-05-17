@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 #include "f710.h"
 
@@ -62,6 +63,12 @@ public:
 
       /* maximum velocity to scale everything by */
       this->declare_parameter("max_vel", 1.0);
+
+      /* maximum arm speed */
+      this->declare_parameter("max_arm_speed", 10000);
+
+      /* maximum drum speed */
+      this->declare_parameter("max_drum_speed", 10000);
 
       /* the distance between the tracks */
       this->declare_parameter("track_spacing", 1.0);
@@ -116,6 +123,15 @@ public:
          track_spacing = this->get_parameter("track_spacing").as_double();
       }
 
+      max_arm_speed = this->get_parameter("max_arm_speed").as_int();
+      arm_speed_mult = 1.0;
+      
+      max_drum_speed = this->get_parameter("max_drum_speed").as_int();
+      drum_speed_mult = 1.0;
+
+      last_arm_adjust = std::chrono::steady_clock::now();
+      last_drum_adjust = std::chrono::steady_clock::now();
+
       RCLCPP_INFO(this->get_logger(),"got device %s and max_vel %f",device,max_vel);
 
       fd = try_connect(device);
@@ -162,6 +178,16 @@ private:
    /* the distance between the tracks */
    double track_spacing;
 
+   /* arm speed variables */
+   int max_arm_speed;
+   double arm_speed_mult;
+   std::chrono::steady_clock::time_point last_arm_adjust;
+
+   /* drum speed variables */
+   int max_drum_speed;
+   double drum_speed_mult;
+   std::chrono::steady_clock::time_point last_drum_adjust;
+
    /* publish rate in seconds */
    double publish_rate;
 
@@ -185,19 +211,54 @@ private:
             double lwh = ((double)(stat.lv_fr - 127) / -128.0) * max_vel;
             double rwh = ((double)(stat.rv_fr - 127) / -128.0) * max_vel;
 
+            /* Allow for scaling the arm and drum speeds by holding down the mode button.
+             * This is useful for fine control or testing different speeds manually.
+             * Use the A/B buttons to adjust the drum speed multiplier and the X/Y buttons
+             * to adjust the arm speed multiplier. Speeds are constrained between 0.0 and 1.5x
+             * to prevent reversing direction or excessive speeds.
+             * 
+             * Updates are rate limited to 5 Hz to prevent excessive adjustments from a single button press.
+             * */
+            if (stat.mode) {
+               auto now = std::chrono::steady_clock::now();
+               auto arm_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_arm_adjust).count();
+               auto drum_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_drum_adjust).count();
+
+               if (drum_elapsed > 200) {
+                  if (stat.a) {
+                     drum_speed_mult = fmax(drum_speed_mult - 0.05, 0.0);
+                     last_drum_adjust = now;
+                  } else if (stat.b) {
+                     drum_speed_mult = fmin(drum_speed_mult + 0.05, 1.5);
+                     last_drum_adjust = now;
+                  }
+               }
+               
+
+               if (arm_elapsed > 200) {
+                  if (stat.x) {
+                     arm_speed_mult = fmax(arm_speed_mult - 0.05, 0.0);
+                     last_arm_adjust = now;
+                  } else if (stat.y) {
+                     arm_speed_mult = fmin(arm_speed_mult + 0.05, 1.5);
+                     last_arm_adjust = now;
+                  }
+               }
+            }
+
             // Move the arm up/down using the left trigger and bumper
             int32_t arm_speed = 0;
             if (stat.lt)
-               arm_speed = -10000;
+               arm_speed = (int)(-max_arm_speed * arm_speed_mult);
             else if (stat.lb)
-               arm_speed = 10000;
+               arm_speed = (int)(max_arm_speed * arm_speed_mult);
 
             // Move the drum fw/back using the right trigger and bumper
             double drum_speed = 0;
             if (stat.rt)
-               drum_speed = -15;
+               drum_speed = -max_drum_speed * drum_speed_mult;
             else if (stat.rb)
-               drum_speed = 15;
+               drum_speed = max_drum_speed * drum_speed_mult;
 
             printf("lwh: %lf, rwh: %lf, arm: %d, drum: %lf\n",
                    lwh,rwh,arm_speed,drum_speed);
