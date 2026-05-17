@@ -185,12 +185,14 @@ private:
             double lwh = ((double)(stat.lv_fr - 127) / -128.0) * max_vel;
             double rwh = ((double)(stat.rv_fr - 127) / -128.0) * max_vel;
 
+            // Move the arm up/down using the left trigger and bumper
             int32_t arm_speed = 0;
             if (stat.lt)
-               arm_speed = 10000;
-            else if (stat.lb)
                arm_speed = -10000;
+            else if (stat.lb)
+               arm_speed = 10000;
 
+            // Move the drum fw/back using the right trigger and bumper
             double drum_speed = 0;
             if (stat.rt)
                drum_speed = -15;
