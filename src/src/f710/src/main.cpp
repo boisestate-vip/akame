@@ -96,6 +96,7 @@ public:
       const char * device;
 
       char namebuf[128], velbuf[128], wheelbuf[128];
+      std::string device_str = this->get_parameter("device").as_string();
       if (this->get_parameter("interactive").as_bool()) {
 
          fprintf(stderr,"enter the device to connect to: ");
@@ -121,7 +122,6 @@ public:
          }
       }
       else {
-         std::string device_str = this->get_parameter("device").as_string();
          device = device_str.c_str();
          max_vel = this->get_parameter("max_vel").as_double();
          track_spacing = this->get_parameter("track_spacing").as_double();
