@@ -115,6 +115,10 @@ public:
          else {
             track_spacing = strtod(wheelbuf,NULL);
          }
+         if (track_spacing <= 0.01) {
+            fprintf(stderr, "track spacing is too small (<=0.01). Using 0.01 as a default.\n")
+            track_spacing = 0.01
+         }
       }
       else {
          std::string device_str = this->get_parameter("device").as_string();
