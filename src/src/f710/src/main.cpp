@@ -63,6 +63,9 @@ public:
       /* maximum velocity to scale everything by */
       this->declare_parameter("max_vel", 1.0);
 
+      /* the distance between the tracks */
+      this->declare_parameter("track_spacing", 1.0);
+
       /* the device to connect to the controller on */
       this->declare_parameter("device","/dev/hidraw1");
 
@@ -85,7 +88,7 @@ public:
 
       const char * device;
 
-      char namebuf[128], velbuf[128];
+      char namebuf[128], velbuf[128], wheelbuf[128];
       if (this->get_parameter("interactive").as_bool()) {
 
          fprintf(stderr,"enter the device to connect to: ");
@@ -95,11 +98,22 @@ public:
          fprintf(stderr,"enter the max velocity for control: ");
          read_line(velbuf,128);
          max_vel = strtod(velbuf,NULL);
+
+         fprintf(stderr,"enter the track spacing (blank for default): ");
+         read_line(wheelbuf,128);
+         if (strlen(wheelbuf) == 0) {
+            fprintf(stderr,"using default track spacing of 1.0\n");
+            track_spacing = 1.0;
+         }
+         else {
+            track_spacing = strtod(wheelbuf,NULL);
+         }
       }
       else {
          std::string device_str = this->get_parameter("device").as_string();
          device = device_str.c_str();
          max_vel = this->get_parameter("max_vel").as_double();
+         track_spacing = this->get_parameter("track_spacing").as_double();
       }
 
       RCLCPP_INFO(this->get_logger(),"got device %s and max_vel %f",device,max_vel);
@@ -145,6 +159,9 @@ private:
    /* velocity multiplier */
    double max_vel;
 
+   /* the distance between the tracks */
+   double track_spacing;
+
    /* publish rate in seconds */
    double publish_rate;
 
@@ -183,14 +200,15 @@ private:
             printf("lwh: %lf, rwh: %lf, arm: %d, drum: %lf\n",
                    lwh,rwh,arm_speed,drum_speed);
 
-            /* here we compute the angular velocity assuming
-             * a value of 1.0 for b. This seems logical to
-             * me, given that the controller is kind of an
-             * abstract vehicle in the sense of a differential
-             * drive system anyway...                         */
+            /* here we compute the angular velocity. 
+             * This seems logical to me, given that the controller 
+             * is kind of an abstract vehicle in the sense of a 
+             * differential drive system anyway...
+             * */
             // https://en.wikipedia.org/wiki/Differential_wheeled_robot
 
-            double w = rwh - lwh;
+            double b = track_spacing;
+            double w = (rwh - lwh) / b;
             double V = (rwh + lwh) / 2.0;
 
             state_lock.lock();
