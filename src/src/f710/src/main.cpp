@@ -68,7 +68,7 @@ public:
       this->declare_parameter("max_arm_speed", 10000);
 
       /* maximum drum speed */
-      this->declare_parameter("max_drum_speed", 10000);
+      this->declare_parameter("max_drum_speed", 15.0);
 
       /* the distance between the tracks */
       this->declare_parameter("track_spacing", 1.0);
@@ -126,7 +126,7 @@ public:
       max_arm_speed = this->get_parameter("max_arm_speed").as_int();
       arm_speed_mult = 1.0;
       
-      max_drum_speed = this->get_parameter("max_drum_speed").as_int();
+      max_drum_speed = this->get_parameter("max_drum_speed").as_double();
       drum_speed_mult = 1.0;
 
       last_arm_adjust = std::chrono::steady_clock::now();
@@ -184,7 +184,7 @@ private:
    std::chrono::steady_clock::time_point last_arm_adjust;
 
    /* drum speed variables */
-   int max_drum_speed;
+   double max_drum_speed;
    double drum_speed_mult;
    std::chrono::steady_clock::time_point last_drum_adjust;
 
