@@ -44,11 +44,12 @@ int f710_read_next(int fd, struct f710_status * stat) {
 
    if (res > 0) {
 
-      read(fd,&recved,sizeof(long));
+      ssize_t n = read(fd,&recved,sizeof(long));
+      if (n == sizeof(long)){
+         f710_update_status(recved,stat);
 
-      f710_update_status(recved,stat);
-
-      return 1;
+         return 1;
+      }
    }
    return 0;
 }
