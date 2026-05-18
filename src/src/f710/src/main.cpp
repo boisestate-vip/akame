@@ -95,7 +95,7 @@ public:
 
       const char * device;
 
-      char namebuf[128], velbuf[128], wheelbuf[128];
+      char namebuf[128], velbuf[128], wheelbuf[128], armbuf[128], drumbuf[128];
       std::string device_str = this->get_parameter("device").as_string();
       if (this->get_parameter("interactive").as_bool()) {
 
@@ -120,17 +120,31 @@ public:
             fprintf(stderr, "track spacing is too small (<=0.01). Using 0.01 as a default.\n");
             track_spacing = 0.01;
          }
+
+         fprintf(stderr,"enter the max arm speed (blank for default): ");
+         read_line(armbuf,128);
+         if (strlen(armbuf) == 0) {
+            fprintf(stderr,"using default value of 10000\n");
+            max_arm_speed = 10000;
+         }
+         else max_arm_speed = atoi(armbuf);
+
+         fprintf(stderr,"enter the max drum velocity (blank for default): ");
+         read_line(drumbuf,128);
+         if (strlen(drumbuf) == 0) {
+            max_drum_speed = 15.0;
+         }
+         else max_drum_speed = strtod(drumbuf,NULL);
       }
       else {
          device = device_str.c_str();
          max_vel = this->get_parameter("max_vel").as_double();
          track_spacing = this->get_parameter("track_spacing").as_double();
+         max_arm_speed = this->get_parameter("max_arm_speed").as_int();
+         max_drum_speed = this->get_parameter("max_drum_speed").as_double();
       }
 
-      max_arm_speed = this->get_parameter("max_arm_speed").as_int();
       arm_speed_mult = 1.0;
-      
-      max_drum_speed = this->get_parameter("max_drum_speed").as_double();
       drum_speed_mult = 1.0;
 
       last_arm_adjust = std::chrono::steady_clock::now();
