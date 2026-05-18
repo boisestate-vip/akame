@@ -36,7 +36,7 @@
 static void read_line(char * buf, int size) {
    if (fgets(buf,size-1,stdin) == NULL) buf[0] = '\0';
    int end = strlen(buf) - 1;
-   while (isspace(buf[end]) && end > 0)
+   while (isspace(buf[end]) && end >= 0)
       end -= 1;
    buf[end+1] = '\0';
 }
