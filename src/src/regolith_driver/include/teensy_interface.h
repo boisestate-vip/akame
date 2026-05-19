@@ -41,6 +41,11 @@ struct power_data_collapse {
 #define MAX_ANALOG_CHANNELS  2
 #define MAX_POWER_MONITORS   8
 
+struct data_head {
+   int type;
+   int size;
+};
+
 struct data {
    int type;
    int size;
@@ -68,9 +73,9 @@ struct data {
          float estimated_load;
       } estimate_load;
       struct {
-         float h;         /* target bucket height (mm) */
+         float h;         /* corrected desired height (input_h_desired + h_delta, mm) */
          float h_a;       /* TOF-adjusted actual bucket height (mm) */
-         float h_delta;   /* height error h - h_a (mm) */
+         float h_delta;   /* height error h_forward - h_a (mm) */
          float target_L;  /* target linear actuator length (mm) */
       } kin_calc;
    } as;

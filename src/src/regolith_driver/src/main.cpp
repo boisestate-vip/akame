@@ -99,11 +99,12 @@ public:
       this->declare_parameter("poll_hz", 10);
 
       /* topics to publish sensor readings on */
-      this->declare_parameter("tof_topic",      "/regolith/tof");
-      this->declare_parameter("power_topic",    "/regolith/power");
-      this->declare_parameter("analog_topic",   "/regolith/analog");
-      this->declare_parameter("mass_topic",     "/regolith/mass");
-      this->declare_parameter("kin_calc_topic", "/regolith/kin_calc");
+      this->declare_parameter("tof_topic",            "/regolith/tof");
+      this->declare_parameter("power_topic",          "/regolith/power");
+      this->declare_parameter("analog_topic",         "/regolith/analog");
+      this->declare_parameter("mass_topic",           "/regolith/mass");
+      this->declare_parameter("kin_calc_topic",       "/regolith/kin_calc");
+      this->declare_parameter("estimated_load_topic", "/regolith/estimated_load");
 
       /* topic to receive actuator position for regolith mass calculation */
       this->declare_parameter("actuator_pos_in", "/regolith/actuator_pos");
@@ -119,6 +120,8 @@ public:
                          this->get_parameter("mass_topic").as_string(), 10);
       kin_calc_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>(
                          this->get_parameter("kin_calc_topic").as_string(), 10);
+      estimated_load_pub = this->create_publisher<std_msgs::msg::Float32>(
+                               this->get_parameter("estimated_load_topic").as_string(), 10);
 
       /* actuator position subscriber — required to compute regolith mass */
       actuator_pos_sub = this->create_subscription<std_msgs::msg::Float32>(
@@ -167,9 +170,13 @@ private:
    /* file descriptor for the serial connection */
    int fd;
 
-   /* actuator position for regolith mass calculation */
+   /* actuator position for mass and kinematic calculations */
    float actuator_pos = 0.0f;
    bool has_actuator_pos = false;
+
+   /* strain gauge bridge voltage (analog channel 0, pin A13) for load estimation */
+   float bridge_voltage = 0.0f;
+   bool has_bridge_voltage = false;
 
    /* publishers */
    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr tof_pub;
@@ -177,6 +184,7 @@ private:
    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr analog_pub;
    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr mass_pub;
    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr kin_calc_pub;
+   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr estimated_load_pub;
 
    /* subscriptions */
    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr actuator_pos_sub;
@@ -223,6 +231,8 @@ private:
       if (has_actuator_pos) {
          poll_mass();
          poll_kin_calc();
+         if (has_bridge_voltage)
+            poll_estimate_load();
       }
    }
 
@@ -270,7 +280,8 @@ private:
       power_pub->publish(msg);
    }
 
-   /* analog channel voltages — [bridge_voltage, temperature_voltage] */
+   /* analog channel voltages — [bridge_voltage, temperature_voltage]
+    * channel 0 (A13) is the strain gauge bridge voltage; cache it for poll_estimate_load(). */
    void poll_analog() {
       send_cmd(CMD_ANALOG, 0, nullptr);
       struct data res;
@@ -285,6 +296,10 @@ private:
       for (int i = 0; i < count; i++)
          msg.data.push_back(res.as.analog.values[i].voltage);
       analog_pub->publish(msg);
+      if (count > 0) {
+         bridge_voltage = res.as.analog.values[0].voltage;
+         has_bridge_voltage = true;
+      }
    }
 
    /* regolith mass estimate — requires actuator position from actuator_pos_in topic */
@@ -319,6 +334,21 @@ private:
       msg.data.push_back(res.as.kin_calc.h_delta);
       msg.data.push_back(res.as.kin_calc.target_L);
       kin_calc_pub->publish(msg);
+   }
+
+   /* bucket load estimate — requires actuator_pos and bridge voltage (A13, from poll_analog). */
+   void poll_estimate_load() {
+      float args[2] = { actuator_pos, bridge_voltage };
+      send_cmd(CMD_ESTIMATE_LOAD, 2, args);
+      struct data res;
+      if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_ESTIMATE_LOAD) {
+         RCLCPP_WARN(this->get_logger(), "estimate_load read failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
+         return;
+      }
+      auto msg = std_msgs::msg::Float32();
+      msg.data = res.as.estimate_load.estimated_load;
+      estimated_load_pub->publish(msg);
    }
 
 };
