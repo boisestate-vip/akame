@@ -1,0 +1,23 @@
+# udev rules for the bender regolith controller teensy.
+#
+# derived from the PJRC default teensy rules at
+# https://www.pjrc.com/teensy/49-teensy.rules, with an added SYMLINK
+# so the regolith controller gets a stable device name independent
+# of /dev/ttyACM* enumeration order (which otherwise collides with
+# the roboclaw on the same robot).
+#
+# install to /etc/udev/rules.d/49-teensy.rules — setup.sh does this.
+
+# tell ModemManager and MTP not to probe teensy devices
+ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="04[789B]?", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="04[789A]?", ENV{MTP_NO_PROBE}="1"
+
+# permissions on all teensy USB interfaces (HID, RawHID, etc.)
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="04[789ABCD]?", MODE:="0666"
+
+# permissions + stable symlink on the serial CDC interface (Teensy 4.x = idProduct 0483)
+KERNEL=="ttyACM*", ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="04[789B]?", MODE:="0666", SYMLINK+="teensy-regolith"
+
+# note: if you ever run more than one teensy on the same host, scope the
+# symlink to a specific board with ATTRS{serial}=="<serial>" — find the
+# serial with `udevadm info -a -n /dev/ttyACM0 | grep serial`.
