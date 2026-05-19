@@ -90,30 +90,35 @@ public:
 
    RegolithDriver() : Node("regolith_driver") {
 
-      /* serial device the teensy is connected on */
-      this->declare_parameter("device", "/dev/ttyACM0");
+      /* serial device the teensy is connected on. defaults to the udev
+       * symlink installed by setup.sh — avoids collision with other
+       * /dev/ttyACM* devices (e.g. the roboclaw). */
+      this->declare_parameter("device", "/dev/teensy-regolith");
 
       /* sensor polling rate */
       this->declare_parameter("poll_hz", 10);
 
       /* topics to publish sensor readings on */
-      this->declare_parameter("tof_topic",    "/regolith/tof");
-      this->declare_parameter("power_topic",  "/regolith/power");
-      this->declare_parameter("analog_topic", "/regolith/analog");
-      this->declare_parameter("mass_topic",   "/regolith/mass");
+      this->declare_parameter("tof_topic",      "/regolith/tof");
+      this->declare_parameter("power_topic",    "/regolith/power");
+      this->declare_parameter("analog_topic",   "/regolith/analog");
+      this->declare_parameter("mass_topic",     "/regolith/mass");
+      this->declare_parameter("kin_calc_topic", "/regolith/kin_calc");
 
       /* topic to receive actuator position for regolith mass calculation */
       this->declare_parameter("actuator_pos_in", "/regolith/actuator_pos");
 
       /* publishers */
-      tof_pub    = this->create_publisher<std_msgs::msg::Float32>(
-                       this->get_parameter("tof_topic").as_string(), 10);
-      power_pub  = this->create_publisher<std_msgs::msg::Float32MultiArray>(
-                       this->get_parameter("power_topic").as_string(), 10);
-      analog_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>(
-                       this->get_parameter("analog_topic").as_string(), 10);
-      mass_pub   = this->create_publisher<std_msgs::msg::Float32>(
-                       this->get_parameter("mass_topic").as_string(), 10);
+      tof_pub      = this->create_publisher<std_msgs::msg::Float32>(
+                         this->get_parameter("tof_topic").as_string(), 10);
+      power_pub    = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+                         this->get_parameter("power_topic").as_string(), 10);
+      analog_pub   = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+                         this->get_parameter("analog_topic").as_string(), 10);
+      mass_pub     = this->create_publisher<std_msgs::msg::Float32>(
+                         this->get_parameter("mass_topic").as_string(), 10);
+      kin_calc_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+                         this->get_parameter("kin_calc_topic").as_string(), 10);
 
       /* actuator position subscriber — required to compute regolith mass */
       actuator_pos_sub = this->create_subscription<std_msgs::msg::Float32>(
@@ -129,11 +134,20 @@ public:
       }
       RCLCPP_INFO(this->get_logger(), "connected to regolith controller on %s", dev.c_str());
 
+      /* the teensy's setup() emits text warnings to USB CDC if any sensor
+       * fails to init (see controller's tof.cpp / power.cpp). those bytes
+       * would sit ahead of our first binary response and permanently
+       * desync the protocol. wait for setup() to finish, then drain. */
+      RCLCPP_INFO(this->get_logger(), "waiting for teensy boot...");
+      usleep(500000);
+      tcflush(fd, TCIFLUSH);
+
       /* initial ping to verify comms */
       send_cmd(CMD_SYN, 0, nullptr);
       struct data res;
       if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_ACK) {
-         RCLCPP_WARN(this->get_logger(), "initial ping to teensy failed");
+         RCLCPP_WARN(this->get_logger(), "initial ping to teensy failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
       }
       else {
          RCLCPP_INFO(this->get_logger(), "teensy ping OK");
@@ -162,6 +176,7 @@ private:
    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr power_pub;
    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr analog_pub;
    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr mass_pub;
+   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr kin_calc_pub;
 
    /* subscriptions */
    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr actuator_pos_sub;
@@ -205,8 +220,10 @@ private:
       poll_tof();
       poll_power();
       poll_analog();
-      if (has_actuator_pos)
+      if (has_actuator_pos) {
          poll_mass();
+         poll_kin_calc();
+      }
    }
 
    /* tof distance in mm */
@@ -215,6 +232,7 @@ private:
       struct data res;
       if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_TOF) {
          RCLCPP_WARN(this->get_logger(), "tof read failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
          return;
       }
       auto msg = std_msgs::msg::Float32();
@@ -230,6 +248,7 @@ private:
       struct data res;
       if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_POWER) {
          RCLCPP_WARN(this->get_logger(), "power read failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
          return;
       }
       auto msg = std_msgs::msg::Float32MultiArray();
@@ -257,6 +276,7 @@ private:
       struct data res;
       if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_ANALOG) {
          RCLCPP_WARN(this->get_logger(), "analog read failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
          return;
       }
       auto msg = std_msgs::msg::Float32MultiArray();
@@ -274,11 +294,31 @@ private:
       struct data res;
       if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_REG_MASS) {
          RCLCPP_WARN(this->get_logger(), "mass read failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
          return;
       }
       auto msg = std_msgs::msg::Float32();
       msg.data = res.as.reg_mass.mass;
       mass_pub->publish(msg);
+   }
+
+   /* kinematic calculation — requires actuator position from actuator_pos_in topic.
+    * publishes [h, h_a, h_delta, target_L] in mm. */
+   void poll_kin_calc() {
+      float args[1] = { actuator_pos };
+      send_cmd(CMD_KIN_CALC, 1, args);
+      struct data res;
+      if (read_all(&res, sizeof(res)) < 0 || res.type != DATA_KIN_CALC) {
+         RCLCPP_WARN(this->get_logger(), "kin_calc read failed (type=%d)", res.type);
+         tcflush(fd, TCIOFLUSH);
+         return;
+      }
+      auto msg = std_msgs::msg::Float32MultiArray();
+      msg.data.push_back(res.as.kin_calc.h);
+      msg.data.push_back(res.as.kin_calc.h_a);
+      msg.data.push_back(res.as.kin_calc.h_delta);
+      msg.data.push_back(res.as.kin_calc.target_L);
+      kin_calc_pub->publish(msg);
    }
 
 };

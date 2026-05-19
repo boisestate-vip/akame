@@ -36,6 +36,7 @@ struct power_data_collapse {
 #define DATA_POWER          3
 #define DATA_REG_MASS       4
 #define DATA_ESTIMATE_LOAD  5
+#define DATA_KIN_CALC       6
 
 #define MAX_ANALOG_CHANNELS  2
 #define MAX_POWER_MONITORS   8
@@ -66,6 +67,12 @@ struct data {
       struct {
          float estimated_load;
       } estimate_load;
+      struct {
+         float h;         /* target bucket height (mm) */
+         float h_a;       /* TOF-adjusted actual bucket height (mm) */
+         float h_delta;   /* height error h - h_a (mm) */
+         float target_L;  /* target linear actuator length (mm) */
+      } kin_calc;
    } as;
 };
 
@@ -79,6 +86,7 @@ struct data {
 #define CMD_RESET         4
 #define CMD_REG_MASS      5
 #define CMD_ESTIMATE_LOAD 6
+#define CMD_KIN_CALC      7
 
 #define MAX_CMD_ARGS 2
 

@@ -19,4 +19,7 @@ ament_target_dependencies(regolith_driver rclcpp std_msgs)
 install(TARGETS regolith_driver
         DESTINATION lib/${PROJECT_NAME})
 
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME})
+
 ament_package()
